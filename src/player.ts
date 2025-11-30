@@ -11,6 +11,7 @@ export class Player {
   private yaw = 0;
   private pitch = 0;
   private isPointerLocked = false;
+  private isMouseDown = false;
 
   constructor(
     camera: THREE.PerspectiveCamera,
@@ -37,6 +38,14 @@ export class Player {
       this.renderer.domElement.requestPointerLock();
     });
 
+    this.renderer.domElement.addEventListener("mousedown", (e) => {
+      if (e.button === 0) this.isMouseDown = true;
+    });
+
+    this.renderer.domElement.addEventListener("mouseup", (e) => {
+      if (e.button === 0) this.isMouseDown = false;
+    });
+
     document.addEventListener("pointerlockchange", () => {
       this.isPointerLocked =
         document.pointerLockElement === this.renderer.domElement;
@@ -58,7 +67,7 @@ export class Player {
   update() {
     const direction = new THREE.Vector3();
 
-    if (this.keys["KeyW"] || this.keys["ArrowUp"]) direction.z -= 1;
+    if (this.keys["KeyW"] || this.keys["ArrowUp"] || this.isMouseDown) direction.z -= 1;
     if (this.keys["KeyS"] || this.keys["ArrowDown"]) direction.z += 1;
     if (this.keys["KeyA"] || this.keys["ArrowLeft"]) direction.x -= 1;
     if (this.keys["KeyD"] || this.keys["ArrowRight"]) direction.x += 1;
