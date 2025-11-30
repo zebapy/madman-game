@@ -121,6 +121,7 @@ instructions.innerHTML = `
   <div style="position: fixed; bottom: 20px; left: 20px; color: #444; font-family: 'Georgia', serif; font-size: 12px; text-shadow: 0 0 10px rgba(0,0,0,0.8);">
     Click to look around<br>
     WASD / Arrow keys to move<br>
+    Hold Shift to sprint<br>
     ESC to release mouse<br>
     <br>
     Explore the infinite maze...

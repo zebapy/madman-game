@@ -1,5 +1,12 @@
 import * as THREE from "three";
-import { MOVE_SPEED, SPRINT_SPEED, MAX_STAMINA, STAMINA_DRAIN_RATE, STAMINA_REGEN_RATE, STAMINA_REGEN_DELAY } from "./constants";
+import {
+  MOVE_SPEED,
+  SPRINT_SPEED,
+  MAX_STAMINA,
+  STAMINA_DRAIN_RATE,
+  STAMINA_REGEN_RATE,
+  STAMINA_REGEN_DELAY,
+} from "./constants";
 import { checkWallCollision, updateSegments } from "./maze";
 import { audioSystem } from "./audio";
 

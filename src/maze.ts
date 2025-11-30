@@ -357,7 +357,12 @@ function createHallwayMesh(chunk: HallwayChunk): THREE.Group {
     }
 
     // Floor debris for creepy atmosphere
-    const debris = createFloorDebris(length, HALLWAY_WIDTH, chunk.seed + 5555, true);
+    const debris = createFloorDebris(
+      length,
+      HALLWAY_WIDTH,
+      chunk.seed + 5555,
+      true
+    );
     group.add(debris);
   } else {
     // East-West: walls along Z axis
@@ -434,7 +439,12 @@ function createHallwayMesh(chunk: HallwayChunk): THREE.Group {
     }
 
     // Floor debris for creepy atmosphere
-    const debris = createFloorDebris(length, HALLWAY_WIDTH, chunk.seed + 5555, false);
+    const debris = createFloorDebris(
+      length,
+      HALLWAY_WIDTH,
+      chunk.seed + 5555,
+      false
+    );
     group.add(debris);
   }
 

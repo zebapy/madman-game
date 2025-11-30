@@ -21,7 +21,7 @@ interface AudioConfig {
 const DEFAULT_CONFIG: AudioConfig = {
   junctionSounds: ["/audio/knock3.mp3", "/audio/knock6.mp3"],
   hallwayAmbientSounds: ["/audio/floorcreak.mp3", "/audio/doorcreak.mp3"],
-  musicTrack: "/audio/winddrone.mp3",
+  musicTrack: "/audio/winddrone2.mp3",
   hallwayAmbientChance: 0.002, // ~0.2% chance per frame
   hallwayAmbientCooldown: 8000, // 8 seconds minimum between ambient sounds
   maxAudioDistance: 25, // Audio fades out over 25 units

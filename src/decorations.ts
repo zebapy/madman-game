@@ -29,7 +29,10 @@ function createDebrisPiece(
       // Crumpled paper / old receipt / note
       const paperGroup = new THREE.Group();
       const size = 0.08 + rand() * 0.12;
-      const geometry = new THREE.PlaneGeometry(size, size * (0.8 + rand() * 0.4));
+      const geometry = new THREE.PlaneGeometry(
+        size,
+        size * (0.8 + rand() * 0.4)
+      );
       const color = rand() > 0.7 ? 0xd4c4a8 : 0xc8b896; // Yellowed paper
       const material = new THREE.MeshStandardMaterial({
         color,
@@ -53,11 +56,20 @@ function createDebrisPiece(
         const shardGeom = new THREE.BufferGeometry();
         const size = 0.02 + rand() * 0.04;
         const vertices = new Float32Array([
-          0, 0, 0,
-          size * (0.5 + rand() * 0.5), 0, size * rand() * 0.3,
-          size * rand() * 0.3, 0, size * (0.5 + rand() * 0.5),
+          0,
+          0,
+          0,
+          size * (0.5 + rand() * 0.5),
+          0,
+          size * rand() * 0.3,
+          size * rand() * 0.3,
+          0,
+          size * (0.5 + rand() * 0.5),
         ]);
-        shardGeom.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
+        shardGeom.setAttribute(
+          "position",
+          new THREE.BufferAttribute(vertices, 3)
+        );
         shardGeom.computeVertexNormals();
         const shardMat = new THREE.MeshStandardMaterial({
           color: 0x88aa88,
@@ -68,11 +80,7 @@ function createDebrisPiece(
           side: THREE.DoubleSide,
         });
         const shard = new THREE.Mesh(shardGeom, shardMat);
-        shard.position.set(
-          (rand() - 0.5) * 0.1,
-          0.002,
-          (rand() - 0.5) * 0.1
-        );
+        shard.position.set((rand() - 0.5) * 0.1, 0.002, (rand() - 0.5) * 0.1);
         shard.rotation.y = rand() * Math.PI * 2;
         glassGroup.add(shard);
       }
@@ -191,7 +199,14 @@ function createDebrisPiece(
         bottleGroup.add(neck);
       } else {
         // Broken bottle bottom
-        const brokenGeom = new THREE.CylinderGeometry(0.02, 0.025, 0.03, 8, 1, true);
+        const brokenGeom = new THREE.CylinderGeometry(
+          0.02,
+          0.025,
+          0.03,
+          8,
+          1,
+          true
+        );
         const bottleMat = new THREE.MeshStandardMaterial({
           color: 0x2a4a2a,
           roughness: 0.2,
@@ -228,7 +243,10 @@ function createDebrisPiece(
 
     case "leaf": {
       // Dead leaf (tracked in from outside)
-      const leafGeom = new THREE.PlaneGeometry(0.04 + rand() * 0.03, 0.025 + rand() * 0.02);
+      const leafGeom = new THREE.PlaneGeometry(
+        0.04 + rand() * 0.03,
+        0.025 + rand() * 0.02
+      );
       const leafMat = new THREE.MeshStandardMaterial({
         color: rand() > 0.5 ? 0x4a3a20 : 0x3a2a15,
         roughness: 0.9,
@@ -308,13 +326,18 @@ export function createFloorDebris(
   // Add some corner clusters (debris accumulates in corners)
   const cornerCount = Math.floor(rand() * 3);
   for (let c = 0; c < cornerCount; c++) {
-    const cornerX = (rand() > 0.5 ? 1 : -1) * (isNorthSouth ? width / 2 - 0.3 : length / 2 - 0.5);
-    const cornerZ = (rand() > 0.5 ? 1 : -1) * (isNorthSouth ? length / 2 - 0.5 : width / 2 - 0.3);
-    
+    const cornerX =
+      (rand() > 0.5 ? 1 : -1) *
+      (isNorthSouth ? width / 2 - 0.3 : length / 2 - 0.5);
+    const cornerZ =
+      (rand() > 0.5 ? 1 : -1) *
+      (isNorthSouth ? length / 2 - 0.5 : width / 2 - 0.3);
+
     // Small cluster of debris in corner
     const clusterSize = 2 + Math.floor(rand() * 3);
     for (let j = 0; j < clusterSize; j++) {
-      const type: DebrisType = rand() > 0.6 ? "dust" : rand() > 0.5 ? "paper" : "leaf";
+      const type: DebrisType =
+        rand() > 0.6 ? "dust" : rand() > 0.5 ? "paper" : "leaf";
       const piece = createDebrisPiece(type, seed + c * 500 + j * 77);
       piece.position.x = cornerX + (rand() - 0.5) * 0.3;
       piece.position.z = cornerZ + (rand() - 0.5) * 0.3;
