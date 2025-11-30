@@ -12,6 +12,7 @@ import {
   HALLWAY_LENGTH,
   JUNCTION_SIZE,
   MAX_LOADED_SEGMENTS,
+  DOOR_SPACING,
 } from "./constants";
 import {
   getOppositeDirection,
@@ -24,7 +25,11 @@ import {
   ceilingMaterial,
   wainscotMaterial,
 } from "./materials";
-import { createWallLampGroup, createPortraitGroup } from "./decorations";
+import {
+  createWallLampGroup,
+  createPortraitGroup,
+  createHotelDoorGroup,
+} from "./decorations";
 
 // ============== STATE ==============
 const chunks = new Map<string, Chunk>();
@@ -302,9 +307,35 @@ function createHallwayMesh(chunk: HallwayChunk): THREE.Group {
       allWallLights.push(light);
     }
 
-    // Portraits
-    const numPortraits = Math.floor(rand() * 3) + 2;
-    const portraitPositions: number[] = [];
+    // Hotel room doors
+    const doorPositions: number[] = [];
+    const startOffset = -length / 2 + DOOR_SPACING / 2 + 1; // Start a bit from the end
+    const endOffset = length / 2 - DOOR_SPACING / 2 - 1;
+
+    // Generate room number base from chunk seed
+    const roomNumberBase = 100 + (Math.abs(chunk.seed) % 900);
+    let doorIndex = 0;
+
+    for (let z = startOffset; z < endOffset; z += DOOR_SPACING) {
+      // Alternate sides, sometimes skip for variety
+      if (rand() > 0.15) {
+        // 85% chance to place a door
+        const side: "left" | "right" = doorIndex % 2 === 0 ? "left" : "right";
+        const roomNumber = roomNumberBase + doorIndex;
+        const door = createHotelDoorGroup(
+          z,
+          side,
+          roomNumber,
+          chunk.seed + doorIndex * 777
+        );
+        group.add(door);
+        doorPositions.push(z);
+      }
+      doorIndex++;
+    }
+
+    // Portraits between doors
+    const numPortraits = Math.floor(rand() * 2) + 1;
     for (let i = 0; i < numPortraits; i++) {
       let z: number;
       let attempts = 0;
@@ -312,11 +343,11 @@ function createHallwayMesh(chunk: HallwayChunk): THREE.Group {
         z = (rand() - 0.5) * (length - 4);
         attempts++;
       } while (
-        portraitPositions.some((pos) => Math.abs(pos - z) < 3) &&
+        (doorPositions.some((pos) => Math.abs(pos - z) < 2) ||
+          doorPositions.some((pos) => Math.abs(pos - z) < 2)) &&
         attempts < 20
       );
       if (attempts < 20) {
-        portraitPositions.push(z);
         const side = rand() > 0.5 ? "left" : "right";
         const portrait = createPortraitGroup(z, side, chunk.seed + i * 1000);
         group.add(portrait);
@@ -366,6 +397,35 @@ function createHallwayMesh(chunk: HallwayChunk): THREE.Group {
       group.add(lampGroup);
       chunk.lights.push(light);
       allWallLights.push(light);
+    }
+
+    // Hotel room doors (for E-W hallways, doors are along X axis)
+    const startOffset = -length / 2 + DOOR_SPACING / 2 + 1;
+    const endOffset = length / 2 - DOOR_SPACING / 2 - 1;
+    const roomNumberBase = 100 + (Math.abs(chunk.seed) % 900);
+    let doorIndex = 0;
+
+    for (let x = startOffset; x < endOffset; x += DOOR_SPACING) {
+      if (rand() > 0.15) {
+        const side: "left" | "right" = doorIndex % 2 === 0 ? "left" : "right";
+        const roomNumber = roomNumberBase + doorIndex;
+        // For E-W hallways, we need to rotate the door group
+        const doorGroup = createHotelDoorGroup(
+          0,
+          side,
+          roomNumber,
+          chunk.seed + doorIndex * 777
+        );
+        // Reposition for E-W orientation: swap x and z, rotate
+        const wallOffset =
+          side === "left"
+            ? -HALLWAY_WIDTH / 2 + 0.05
+            : HALLWAY_WIDTH / 2 - 0.05;
+        doorGroup.position.set(x, 0, wallOffset);
+        doorGroup.rotation.y = side === "left" ? 0 : Math.PI;
+        group.add(doorGroup);
+      }
+      doorIndex++;
     }
   }
 
