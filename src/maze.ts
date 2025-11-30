@@ -1,5 +1,11 @@
 import * as THREE from "three";
-import type { Direction, HallwaySegment } from "./types";
+import type {
+  Direction,
+  Chunk,
+  HallwayChunk,
+  JunctionChunk,
+  ConnectionPoint,
+} from "./types";
 import {
   HALLWAY_WIDTH,
   HALLWAY_HEIGHT,
@@ -20,10 +26,10 @@ import {
 } from "./materials";
 import { createWallLampGroup, createPortraitGroup } from "./decorations";
 
-// State
-const hallwaySegments = new Map<string, HallwaySegment>();
-let segmentIdCounter = 0;
-const loadedSegments = new Set<string>();
+// ============== STATE ==============
+const chunks = new Map<string, Chunk>();
+let chunkIdCounter = 0;
+const loadedChunks = new Set<string>();
 
 // All tracked lights for flickering
 export const allWallLights: THREE.PointLight[] = [];
@@ -31,89 +37,242 @@ export const allWallLights: THREE.PointLight[] = [];
 // All tracked portraits for swaying
 export const allPortraits: THREE.Group[] = [];
 
-// Current segment tracking
-let currentSegmentId: string = "";
+// Current chunk tracking
+let currentChunkId: string = "";
 
-function generateSegmentId(): string {
-  return `seg_${segmentIdCounter++}`;
+// Debug mode
+let debugMode = true;
+const debugMeshes: THREE.Object3D[] = [];
+
+export function setDebugMode(enabled: boolean, scene: THREE.Scene) {
+  debugMode = enabled;
+  if (!enabled) {
+    // Remove all debug meshes
+    debugMeshes.forEach((mesh) => scene.remove(mesh));
+    debugMeshes.length = 0;
+  } else {
+    // Add debug meshes to all loaded chunks
+    chunks.forEach((chunk) => {
+      if (chunk.isLoaded) {
+        addDebugVisualization(chunk, scene);
+      }
+    });
+  }
 }
 
-// Get the junction position (end of hallway)
-export function getJunctionPosition(seg: HallwaySegment): {
-  x: number;
-  z: number;
-} {
-  const vec = getDirectionVector(seg.direction);
-  return {
-    x: seg.startX + vec.x * HALLWAY_LENGTH,
-    z: seg.startZ + vec.z * HALLWAY_LENGTH,
-  };
+export function isDebugMode(): boolean {
+  return debugMode;
 }
 
-function createHallwaySegment(
-  startX: number,
-  startZ: number,
-  direction: Direction,
-  parentId: string | null
-): HallwaySegment {
-  const segment: HallwaySegment = {
-    id: generateSegmentId(),
-    startX,
-    startZ,
-    direction,
-    parentId,
-    children: new Map(),
-    seed: Math.floor(Math.random() * 100000),
-    isLoaded: false,
-    meshGroup: null,
-    lights: [],
-  };
-  hallwaySegments.set(segment.id, segment);
-  return segment;
+// ============== DEBUG VISUALIZATION ==============
+function addDebugVisualization(chunk: Chunk, scene: THREE.Scene) {
+  if (!debugMode) return;
+
+  const debugGroup = new THREE.Group();
+  debugGroup.userData.isDebug = true;
+
+  const lineMaterial = new THREE.LineBasicMaterial({
+    color: 0xff0000,
+    linewidth: 2,
+  });
+  const connectionMaterial = new THREE.LineBasicMaterial({
+    color: 0x00ff00,
+    linewidth: 2,
+  });
+
+  if (chunk.type === "hallway") {
+    const hall = chunk as HallwayChunk;
+    const isNS = hall.direction === "north" || hall.direction === "south";
+    const halfLength = HALLWAY_LENGTH / 2;
+    const halfWidth = HALLWAY_WIDTH / 2;
+
+    // Draw boundary rectangle
+    const points = isNS
+      ? [
+          new THREE.Vector3(-halfWidth, 0.02, -halfLength),
+          new THREE.Vector3(halfWidth, 0.02, -halfLength),
+          new THREE.Vector3(halfWidth, 0.02, halfLength),
+          new THREE.Vector3(-halfWidth, 0.02, halfLength),
+          new THREE.Vector3(-halfWidth, 0.02, -halfLength),
+        ]
+      : [
+          new THREE.Vector3(-halfLength, 0.02, -halfWidth),
+          new THREE.Vector3(halfLength, 0.02, -halfWidth),
+          new THREE.Vector3(halfLength, 0.02, halfWidth),
+          new THREE.Vector3(-halfLength, 0.02, halfWidth),
+          new THREE.Vector3(-halfLength, 0.02, -halfWidth),
+        ];
+
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const line = new THREE.Line(geometry, lineMaterial);
+    debugGroup.add(line);
+
+    // Draw diagonal to show chunk clearly
+    const diagPoints = isNS
+      ? [
+          new THREE.Vector3(-halfWidth, 0.02, -halfLength),
+          new THREE.Vector3(halfWidth, 0.02, halfLength),
+        ]
+      : [
+          new THREE.Vector3(-halfLength, 0.02, -halfWidth),
+          new THREE.Vector3(halfLength, 0.02, halfWidth),
+        ];
+    const diagGeom = new THREE.BufferGeometry().setFromPoints(diagPoints);
+    const diagLine = new THREE.Line(diagGeom, lineMaterial);
+    debugGroup.add(diagLine);
+  } else {
+    // Junction
+    const halfSize = JUNCTION_SIZE / 2;
+    const halfHallway = HALLWAY_WIDTH / 2;
+
+    // Draw outer boundary
+    const outerPoints = [
+      new THREE.Vector3(-halfSize, 0.02, -halfSize),
+      new THREE.Vector3(halfSize, 0.02, -halfSize),
+      new THREE.Vector3(halfSize, 0.02, halfSize),
+      new THREE.Vector3(-halfSize, 0.02, halfSize),
+      new THREE.Vector3(-halfSize, 0.02, -halfSize),
+    ];
+    const outerGeom = new THREE.BufferGeometry().setFromPoints(outerPoints);
+    const outerLine = new THREE.Line(outerGeom, lineMaterial);
+    debugGroup.add(outerLine);
+
+    // Draw hallway opening indicators (green lines showing where openings should be)
+    // North opening
+    const northOpening = [
+      new THREE.Vector3(-halfHallway, 0.03, halfSize),
+      new THREE.Vector3(halfHallway, 0.03, halfSize),
+    ];
+    debugGroup.add(
+      new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(northOpening),
+        connectionMaterial
+      )
+    );
+
+    // South opening
+    const southOpening = [
+      new THREE.Vector3(-halfHallway, 0.03, -halfSize),
+      new THREE.Vector3(halfHallway, 0.03, -halfSize),
+    ];
+    debugGroup.add(
+      new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(southOpening),
+        connectionMaterial
+      )
+    );
+
+    // East opening
+    const eastOpening = [
+      new THREE.Vector3(halfSize, 0.03, -halfHallway),
+      new THREE.Vector3(halfSize, 0.03, halfHallway),
+    ];
+    debugGroup.add(
+      new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(eastOpening),
+        connectionMaterial
+      )
+    );
+
+    // West opening
+    const westOpening = [
+      new THREE.Vector3(-halfSize, 0.03, -halfHallway),
+      new THREE.Vector3(-halfSize, 0.03, halfHallway),
+    ];
+    debugGroup.add(
+      new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(westOpening),
+        connectionMaterial
+      )
+    );
+
+    // Draw X in center
+    const x1 = [
+      new THREE.Vector3(-halfSize * 0.5, 0.02, -halfSize * 0.5),
+      new THREE.Vector3(halfSize * 0.5, 0.02, halfSize * 0.5),
+    ];
+    const x2 = [
+      new THREE.Vector3(halfSize * 0.5, 0.02, -halfSize * 0.5),
+      new THREE.Vector3(-halfSize * 0.5, 0.02, halfSize * 0.5),
+    ];
+    debugGroup.add(
+      new THREE.Line(new THREE.BufferGeometry().setFromPoints(x1), lineMaterial)
+    );
+    debugGroup.add(
+      new THREE.Line(new THREE.BufferGeometry().setFromPoints(x2), lineMaterial)
+    );
+  }
+
+  // Add text label using a sprite
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d")!;
+  canvas.width = 256;
+  canvas.height = 64;
+  context.fillStyle = "#ff0000";
+  context.font = "bold 24px Arial";
+  context.textAlign = "center";
+  const label =
+    chunk.type === "hallway"
+      ? `H:${chunk.id} (${(chunk as HallwayChunk).direction})`
+      : `J:${chunk.id}`;
+  context.fillText(label, 128, 40);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+  const sprite = new THREE.Sprite(spriteMaterial);
+  sprite.scale.set(4, 1, 1);
+  sprite.position.set(0, 0.5, 0);
+  debugGroup.add(sprite);
+
+  debugGroup.position.set(chunk.worldX, 0, chunk.worldZ);
+  scene.add(debugGroup);
+  debugMeshes.push(debugGroup);
 }
 
-// Create hallway mesh going in a specific direction
-function createHallwayMesh(
-  segment: HallwaySegment,
-  length: number = HALLWAY_LENGTH
-): THREE.Group {
+// ============== HELPERS ==============
+function generateChunkId(): string {
+  return `chunk_${chunkIdCounter++}`;
+}
+
+// ============== MESH BUILDERS ==============
+
+// Create a hallway mesh (straight corridor with walls on sides, open on ends)
+function createHallwayMesh(chunk: HallwayChunk): THREE.Group {
   const group = new THREE.Group();
-  const rand = seededRandom(segment.seed);
-  const dir = segment.direction;
-  const isNorthSouth = dir === "north" || dir === "south";
+  const rand = seededRandom(chunk.seed);
+  const length = HALLWAY_LENGTH;
+  const isNorthSouth =
+    chunk.direction === "north" || chunk.direction === "south";
 
   // Floor
   const floorWidth = isNorthSouth ? HALLWAY_WIDTH : length;
   const floorDepth = isNorthSouth ? length : HALLWAY_WIDTH;
   const floorGeom = new THREE.PlaneGeometry(floorWidth, floorDepth);
-  const hallFloor = new THREE.Mesh(floorGeom, floorMaterial.clone());
-  hallFloor.rotation.x = -Math.PI / 2;
-  hallFloor.receiveShadow = true;
-  group.add(hallFloor);
+  const floor = new THREE.Mesh(floorGeom, floorMaterial.clone());
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  group.add(floor);
 
   // Ceiling
-  const hallCeiling = new THREE.Mesh(floorGeom, ceilingMaterial.clone());
-  hallCeiling.rotation.x = Math.PI / 2;
-  hallCeiling.position.y = HALLWAY_HEIGHT;
-  hallCeiling.receiveShadow = true;
-  group.add(hallCeiling);
+  const ceiling = new THREE.Mesh(floorGeom, ceilingMaterial.clone());
+  ceiling.rotation.x = Math.PI / 2;
+  ceiling.position.y = HALLWAY_HEIGHT;
+  ceiling.receiveShadow = true;
+  group.add(ceiling);
 
-  // Walls depend on direction
   if (isNorthSouth) {
-    // Left and right walls (along X axis)
+    // Side walls (left and right)
     const wallGeom = new THREE.PlaneGeometry(length, HALLWAY_HEIGHT);
 
     const leftWall = new THREE.Mesh(wallGeom, wallMaterial.clone());
     leftWall.rotation.y = Math.PI / 2;
-    leftWall.position.x = -HALLWAY_WIDTH / 2;
-    leftWall.position.y = HALLWAY_HEIGHT / 2;
+    leftWall.position.set(-HALLWAY_WIDTH / 2, HALLWAY_HEIGHT / 2, 0);
     leftWall.receiveShadow = true;
     group.add(leftWall);
 
     const rightWall = new THREE.Mesh(wallGeom, wallMaterial.clone());
     rightWall.rotation.y = -Math.PI / 2;
-    rightWall.position.x = HALLWAY_WIDTH / 2;
-    rightWall.position.y = HALLWAY_HEIGHT / 2;
+    rightWall.position.set(HALLWAY_WIDTH / 2, HALLWAY_HEIGHT / 2, 0);
     rightWall.receiveShadow = true;
     group.add(rightWall);
 
@@ -130,7 +289,7 @@ function createHallwayMesh(
     rightWainscot.position.set(HALLWAY_WIDTH / 2 - 0.01, 1.0, 0);
     group.add(rightWainscot);
 
-    // Wall lamps along Z
+    // Wall lamps
     const lampSpacing = 10;
     for (let i = 0; i < length / lampSpacing; i++) {
       const z = -length / 2 + i * lampSpacing + lampSpacing / 2;
@@ -139,7 +298,7 @@ function createHallwayMesh(
         side === "left" ? -HALLWAY_WIDTH / 2 + 0.04 : HALLWAY_WIDTH / 2 - 0.04;
       const { group: lampGroup, light } = createWallLampGroup(x, z, side);
       group.add(lampGroup);
-      segment.lights.push(light);
+      chunk.lights.push(light);
       allWallLights.push(light);
     }
 
@@ -159,7 +318,7 @@ function createHallwayMesh(
       if (attempts < 20) {
         portraitPositions.push(z);
         const side = rand() > 0.5 ? "left" : "right";
-        const portrait = createPortraitGroup(z, side, segment.seed + i * 1000);
+        const portrait = createPortraitGroup(z, side, chunk.seed + i * 1000);
         group.add(portrait);
         allPortraits.push(portrait);
       }
@@ -168,18 +327,14 @@ function createHallwayMesh(
     // East-West: walls along Z axis
     const wallGeom = new THREE.PlaneGeometry(length, HALLWAY_HEIGHT);
 
-    // "Front" wall (positive Z)
     const frontWall = new THREE.Mesh(wallGeom, wallMaterial.clone());
     frontWall.rotation.y = Math.PI;
-    frontWall.position.z = HALLWAY_WIDTH / 2;
-    frontWall.position.y = HALLWAY_HEIGHT / 2;
+    frontWall.position.set(0, HALLWAY_HEIGHT / 2, HALLWAY_WIDTH / 2);
     frontWall.receiveShadow = true;
     group.add(frontWall);
 
-    // "Back" wall (negative Z)
     const backWall = new THREE.Mesh(wallGeom, wallMaterial.clone());
-    backWall.position.z = -HALLWAY_WIDTH / 2;
-    backWall.position.y = HALLWAY_HEIGHT / 2;
+    backWall.position.set(0, HALLWAY_HEIGHT / 2, -HALLWAY_WIDTH / 2);
     backWall.receiveShadow = true;
     group.add(backWall);
 
@@ -196,21 +351,20 @@ function createHallwayMesh(
     backWainscot.position.set(0, 1.0, -HALLWAY_WIDTH / 2 + 0.01);
     group.add(backWainscot);
 
-    // Wall lamps along X
+    // Wall lamps
     const lampSpacing = 10;
     for (let i = 0; i < length / lampSpacing; i++) {
       const x = -length / 2 + i * lampSpacing + lampSpacing / 2;
       const side = i % 2 === 0 ? "left" : "right";
       const z =
         side === "left" ? -HALLWAY_WIDTH / 2 + 0.04 : HALLWAY_WIDTH / 2 - 0.04;
-      // Create lamp rotated for east-west orientation
       const lampGroup = new THREE.Group();
       const { group: lamp, light } = createWallLampGroup(0, 0, side);
       lamp.rotation.y = Math.PI / 2;
       lampGroup.add(lamp);
       lampGroup.position.set(x, 0, z);
       group.add(lampGroup);
-      segment.lights.push(light);
+      chunk.lights.push(light);
       allWallLights.push(light);
     }
   }
@@ -218,101 +372,304 @@ function createHallwayMesh(
   return group;
 }
 
-// Create a junction (4-way intersection) at the end of a hallway
-function createJunctionMesh(segment: HallwaySegment): THREE.Group {
+// Create a junction mesh (4-way intersection with openings on all sides)
+function createJunctionMesh(chunk: JunctionChunk): THREE.Group {
   const group = new THREE.Group();
   const size = JUNCTION_SIZE;
+  const halfHallway = HALLWAY_WIDTH / 2;
 
   // Floor
   const floorGeom = new THREE.PlaneGeometry(size, size);
-  const junctionFloor = new THREE.Mesh(floorGeom, floorMaterial.clone());
-  junctionFloor.rotation.x = -Math.PI / 2;
-  junctionFloor.receiveShadow = true;
-  group.add(junctionFloor);
+  const floor = new THREE.Mesh(floorGeom, floorMaterial.clone());
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  group.add(floor);
 
   // Ceiling
-  const junctionCeiling = new THREE.Mesh(floorGeom, ceilingMaterial.clone());
-  junctionCeiling.rotation.x = Math.PI / 2;
-  junctionCeiling.position.y = HALLWAY_HEIGHT;
-  junctionCeiling.receiveShadow = true;
-  group.add(junctionCeiling);
+  const ceiling = new THREE.Mesh(floorGeom, ceilingMaterial.clone());
+  ceiling.rotation.x = Math.PI / 2;
+  ceiling.position.y = HALLWAY_HEIGHT;
+  ceiling.receiveShadow = true;
+  group.add(ceiling);
 
-  // Add corner pillars for visual interest
-  const pillarSize = 0.3;
-  const pillarGeom = new THREE.BoxGeometry(
-    pillarSize,
-    HALLWAY_HEIGHT,
-    pillarSize
-  );
-  const pillarMat = new THREE.MeshStandardMaterial({
-    color: 0x1a1512,
-    roughness: 0.8,
-  });
+  // Corner wall segments - fill the corners between hallway openings
+  // Each corner is a square area from the junction edge to the hallway opening
+  const cornerSize = (size - HALLWAY_WIDTH) / 2;
 
-  const corners = [
-    { x: -size / 2 + pillarSize / 2, z: -size / 2 + pillarSize / 2 },
-    { x: size / 2 - pillarSize / 2, z: -size / 2 + pillarSize / 2 },
-    { x: -size / 2 + pillarSize / 2, z: size / 2 - pillarSize / 2 },
-    { x: size / 2 - pillarSize / 2, z: size / 2 - pillarSize / 2 },
-  ];
+  if (cornerSize > 0.1) {
+    // Create 4 corner wall sections (each corner has 2 walls facing inward toward center)
+    // The walls line up with the hallway walls
 
-  corners.forEach((corner) => {
-    const pillar = new THREE.Mesh(pillarGeom, pillarMat);
-    pillar.position.set(corner.x, HALLWAY_HEIGHT / 2, corner.z);
-    group.add(pillar);
-  });
+    // NW corner (top-left when viewed from above, -X, +Z)
+    // Wall on east side of corner (continues the west hallway's wall going north)
+    const nwWallEast = new THREE.Mesh(
+      new THREE.PlaneGeometry(cornerSize, HALLWAY_HEIGHT),
+      wallMaterial.clone()
+    );
+    nwWallEast.rotation.y = -Math.PI / 2; // Face east (into junction)
+    nwWallEast.position.set(
+      -halfHallway,
+      HALLWAY_HEIGHT / 2,
+      halfHallway + cornerSize / 2
+    );
+    group.add(nwWallEast);
 
-  // Add a dim light in the junction
-  const junctionLight = new THREE.PointLight(0xffaa44, 0.8, 15, 2);
-  junctionLight.position.set(0, HALLWAY_HEIGHT - 0.5, 0);
-  group.add(junctionLight);
-  segment.lights.push(junctionLight);
-  allWallLights.push(junctionLight);
+    // Wall on south side of corner (continues the north hallway's wall going west)
+    const nwWallSouth = new THREE.Mesh(
+      new THREE.PlaneGeometry(cornerSize, HALLWAY_HEIGHT),
+      wallMaterial.clone()
+    );
+    nwWallSouth.rotation.y = 0; // Face south (into junction)
+    nwWallSouth.position.set(
+      -halfHallway - cornerSize / 2,
+      HALLWAY_HEIGHT / 2,
+      halfHallway
+    );
+    group.add(nwWallSouth);
+
+    // NE corner (top-right, +X, +Z)
+    const neWallWest = new THREE.Mesh(
+      new THREE.PlaneGeometry(cornerSize, HALLWAY_HEIGHT),
+      wallMaterial.clone()
+    );
+    neWallWest.rotation.y = Math.PI / 2; // Face west (into junction)
+    neWallWest.position.set(
+      halfHallway,
+      HALLWAY_HEIGHT / 2,
+      halfHallway + cornerSize / 2
+    );
+    group.add(neWallWest);
+
+    const neWallSouth = new THREE.Mesh(
+      new THREE.PlaneGeometry(cornerSize, HALLWAY_HEIGHT),
+      wallMaterial.clone()
+    );
+    neWallSouth.rotation.y = 0; // Face south (into junction)
+    neWallSouth.position.set(
+      halfHallway + cornerSize / 2,
+      HALLWAY_HEIGHT / 2,
+      halfHallway
+    );
+    group.add(neWallSouth);
+
+    // SW corner (bottom-left, -X, -Z)
+    const swWallEast = new THREE.Mesh(
+      new THREE.PlaneGeometry(cornerSize, HALLWAY_HEIGHT),
+      wallMaterial.clone()
+    );
+    swWallEast.rotation.y = -Math.PI / 2; // Face east (into junction)
+    swWallEast.position.set(
+      -halfHallway,
+      HALLWAY_HEIGHT / 2,
+      -halfHallway - cornerSize / 2
+    );
+    group.add(swWallEast);
+
+    const swWallNorth = new THREE.Mesh(
+      new THREE.PlaneGeometry(cornerSize, HALLWAY_HEIGHT),
+      wallMaterial.clone()
+    );
+    swWallNorth.rotation.y = Math.PI; // Face north (into junction)
+    swWallNorth.position.set(
+      -halfHallway - cornerSize / 2,
+      HALLWAY_HEIGHT / 2,
+      -halfHallway
+    );
+    group.add(swWallNorth);
+
+    // SE corner (bottom-right, +X, -Z)
+    const seWallWest = new THREE.Mesh(
+      new THREE.PlaneGeometry(cornerSize, HALLWAY_HEIGHT),
+      wallMaterial.clone()
+    );
+    seWallWest.rotation.y = Math.PI / 2; // Face west (into junction)
+    seWallWest.position.set(
+      halfHallway,
+      HALLWAY_HEIGHT / 2,
+      -halfHallway - cornerSize / 2
+    );
+    group.add(seWallWest);
+
+    const seWallNorth = new THREE.Mesh(
+      new THREE.PlaneGeometry(cornerSize, HALLWAY_HEIGHT),
+      wallMaterial.clone()
+    );
+    seWallNorth.rotation.y = Math.PI; // Face north (into junction)
+    seWallNorth.position.set(
+      halfHallway + cornerSize / 2,
+      HALLWAY_HEIGHT / 2,
+      -halfHallway
+    );
+    group.add(seWallNorth);
+  }
+
+  // Corner pillars only if junction is larger than hallway (has corners)
+  if (cornerSize > 0.1) {
+    const pillarSize = 0.2;
+    const pillarGeom = new THREE.BoxGeometry(
+      pillarSize,
+      HALLWAY_HEIGHT,
+      pillarSize
+    );
+    const pillarMat = new THREE.MeshStandardMaterial({
+      color: 0x1a1512,
+      roughness: 0.8,
+    });
+
+    const pillarPositions = [
+      { x: -halfHallway, z: -halfHallway },
+      { x: halfHallway, z: -halfHallway },
+      { x: -halfHallway, z: halfHallway },
+      { x: halfHallway, z: halfHallway },
+    ];
+
+    pillarPositions.forEach((pos) => {
+      const pillar = new THREE.Mesh(pillarGeom, pillarMat);
+      pillar.position.set(pos.x, HALLWAY_HEIGHT / 2, pos.z);
+      group.add(pillar);
+    });
+  }
+
+  // Junction light
+  const light = new THREE.PointLight(0xffaa44, 0.8, 15, 2);
+  light.position.set(0, HALLWAY_HEIGHT - 0.5, 0);
+  group.add(light);
+  chunk.lights.push(light);
+  allWallLights.push(light);
 
   return group;
 }
 
-// Load a segment (create meshes and add to scene)
-export function loadSegment(segment: HallwaySegment, scene: THREE.Scene) {
-  if (segment.isLoaded) return;
+// ============== CHUNK CREATION ==============
 
-  const group = new THREE.Group();
-  const vec = getDirectionVector(segment.direction);
+function createHallwayChunk(
+  worldX: number,
+  worldZ: number,
+  direction: Direction
+): HallwayChunk {
+  const halfLength = HALLWAY_LENGTH / 2;
+  const vec = getDirectionVector(direction);
 
-  // Create the hallway mesh
-  const hallwayMesh = createHallwayMesh(segment);
+  const connections: ConnectionPoint[] = [
+    {
+      direction: direction,
+      localX: vec.x * halfLength,
+      localZ: vec.z * halfLength,
+      connected: false,
+      connectedChunkId: null,
+    },
+    {
+      direction: getOppositeDirection(direction),
+      localX: -vec.x * halfLength,
+      localZ: -vec.z * halfLength,
+      connected: false,
+      connectedChunkId: null,
+    },
+  ];
 
-  // Position hallway so it starts at startX, startZ and extends in direction
-  const centerX = segment.startX + (vec.x * HALLWAY_LENGTH) / 2;
-  const centerZ = segment.startZ + (vec.z * HALLWAY_LENGTH) / 2;
-  hallwayMesh.position.set(centerX, 0, centerZ);
-  group.add(hallwayMesh);
+  const chunk: HallwayChunk = {
+    id: generateChunkId(),
+    type: "hallway",
+    worldX,
+    worldZ,
+    direction,
+    connections,
+    seed: Math.floor(Math.random() * 100000),
+    isLoaded: false,
+    meshGroup: null,
+    lights: [],
+  };
 
-  // Create junction at the end
-  const junctionMesh = createJunctionMesh(segment);
-  const junctionPos = getJunctionPosition(segment);
-  junctionMesh.position.set(junctionPos.x, 0, junctionPos.z);
-  group.add(junctionMesh);
-
-  scene.add(group);
-  segment.meshGroup = group;
-  segment.isLoaded = true;
-  loadedSegments.add(segment.id);
+  chunks.set(chunk.id, chunk);
+  return chunk;
 }
 
-// Unload a segment (remove meshes but keep metadata)
-export function unloadSegment(segment: HallwaySegment, scene: THREE.Scene) {
-  if (!segment.isLoaded || !segment.meshGroup) return;
+function createJunctionChunk(worldX: number, worldZ: number): JunctionChunk {
+  const halfSize = JUNCTION_SIZE / 2;
 
-  // Remove lights from tracking
-  segment.lights.forEach((light) => {
+  const connections: ConnectionPoint[] = [
+    {
+      direction: "north",
+      localX: 0,
+      localZ: halfSize,
+      connected: false,
+      connectedChunkId: null,
+    },
+    {
+      direction: "south",
+      localX: 0,
+      localZ: -halfSize,
+      connected: false,
+      connectedChunkId: null,
+    },
+    {
+      direction: "east",
+      localX: halfSize,
+      localZ: 0,
+      connected: false,
+      connectedChunkId: null,
+    },
+    {
+      direction: "west",
+      localX: -halfSize,
+      localZ: 0,
+      connected: false,
+      connectedChunkId: null,
+    },
+  ];
+
+  const chunk: JunctionChunk = {
+    id: generateChunkId(),
+    type: "junction",
+    worldX,
+    worldZ,
+    connections,
+    seed: Math.floor(Math.random() * 100000),
+    isLoaded: false,
+    meshGroup: null,
+    lights: [],
+  };
+
+  chunks.set(chunk.id, chunk);
+  return chunk;
+}
+
+// ============== CHUNK LOADING ==============
+
+export function loadChunk(chunk: Chunk, scene: THREE.Scene) {
+  if (chunk.isLoaded) return;
+
+  let mesh: THREE.Group;
+
+  if (chunk.type === "hallway") {
+    mesh = createHallwayMesh(chunk as HallwayChunk);
+  } else {
+    mesh = createJunctionMesh(chunk as JunctionChunk);
+  }
+
+  mesh.position.set(chunk.worldX, 0, chunk.worldZ);
+  scene.add(mesh);
+
+  chunk.meshGroup = mesh;
+  chunk.isLoaded = true;
+  loadedChunks.add(chunk.id);
+
+  // Add debug visualization if debug mode is on
+  if (debugMode) {
+    addDebugVisualization(chunk, scene);
+  }
+}
+
+export function unloadChunk(chunk: Chunk, scene: THREE.Scene) {
+  if (!chunk.isLoaded || !chunk.meshGroup) return;
+
+  chunk.lights.forEach((light) => {
     const idx = allWallLights.indexOf(light);
     if (idx > -1) allWallLights.splice(idx, 1);
   });
-  segment.lights = [];
+  chunk.lights = [];
 
-  // Dispose geometries and materials
-  segment.meshGroup.traverse((child) => {
+  chunk.meshGroup.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       child.geometry.dispose();
       if (Array.isArray(child.material)) {
@@ -323,237 +680,261 @@ export function unloadSegment(segment: HallwaySegment, scene: THREE.Scene) {
     }
   });
 
-  scene.remove(segment.meshGroup);
-  segment.meshGroup = null;
-  segment.isLoaded = false;
-  loadedSegments.delete(segment.id);
+  scene.remove(chunk.meshGroup);
+  chunk.meshGroup = null;
+  chunk.isLoaded = false;
+  loadedChunks.delete(chunk.id);
 }
 
-// Ensure child segments exist at a junction
-function ensureChildren(segment: HallwaySegment) {
-  const junctionPos = getJunctionPosition(segment);
-  const backDir = getOppositeDirection(segment.direction);
+// ============== CHUNK CONNECTION ==============
 
-  // Create children in all 3 forward directions
-  const allDirs: Direction[] = ["north", "south", "east", "west"];
+function connectChunks(
+  existingChunk: Chunk,
+  connectionDir: Direction,
+  newChunk: Chunk
+) {
+  const existingConn = existingChunk.connections.find(
+    (c) => c.direction === connectionDir
+  );
+  if (!existingConn) return;
 
-  allDirs.forEach((dir) => {
-    if (dir === backDir) return; // Don't create child going back
-    if (segment.children.has(dir)) return; // Already exists
+  const oppositeDir = getOppositeDirection(connectionDir);
+  const newConn = newChunk.connections.find((c) => c.direction === oppositeDir);
+  if (!newConn) return;
 
-    // Child starts at junction and goes in direction
-    const childStartX = junctionPos.x;
-    const childStartZ = junctionPos.z;
+  existingConn.connected = true;
+  existingConn.connectedChunkId = newChunk.id;
+  newConn.connected = true;
+  newConn.connectedChunkId = existingChunk.id;
+}
 
-    const child = createHallwaySegment(
-      childStartX,
-      childStartZ,
-      dir,
-      segment.id
+function spawnConnectedChunks(chunk: Chunk) {
+  for (const conn of chunk.connections) {
+    if (conn.connected) continue;
+
+    const connWorldX = chunk.worldX + conn.localX;
+    const connWorldZ = chunk.worldZ + conn.localZ;
+    const dir = conn.direction;
+    const vec = getDirectionVector(dir);
+
+    // Spawn single hallway - center is HALLWAY_LENGTH/2 from connection point
+    const hallwayX = connWorldX + vec.x * (HALLWAY_LENGTH / 2);
+    const hallwayZ = connWorldZ + vec.z * (HALLWAY_LENGTH / 2);
+
+    const isNS = dir === "north" || dir === "south";
+    const halfL = HALLWAY_LENGTH / 2;
+    const halfW = HALLWAY_WIDTH / 2;
+    console.log(
+      `Spawning hallway from ${chunk.type} at (${chunk.worldX}, ${chunk.worldZ})`
     );
-    segment.children.set(dir, child.id);
-  });
+    console.log(
+      `  Connection point (junction edge): (${connWorldX}, ${connWorldZ}), dir: ${dir}`
+    );
+    console.log(`  Hallway center: (${hallwayX}, ${hallwayZ})`);
+    console.log(
+      `  Hallway floor bounds: x=[${hallwayX - halfW}, ${
+        hallwayX + halfW
+      }], z=[${hallwayZ - (isNS ? halfL : halfW)}, ${
+        hallwayZ + (isNS ? halfL : halfW)
+      }]`
+    );
+    console.log(
+      `  Junction floor bounds: x=[${chunk.worldX - JUNCTION_SIZE / 2}, ${
+        chunk.worldX + JUNCTION_SIZE / 2
+      }], z=[${chunk.worldZ - JUNCTION_SIZE / 2}, ${
+        chunk.worldZ + JUNCTION_SIZE / 2
+      }]`
+    );
+
+    const hallway = createHallwayChunk(hallwayX, hallwayZ, dir);
+    connectChunks(chunk, dir, hallway);
+
+    // Junction at far end of hallway - hallway ends at connWorld + HALLWAY_LENGTH
+    // Junction center is JUNCTION_SIZE/2 beyond that
+    const junctionX = connWorldX + vec.x * (HALLWAY_LENGTH + JUNCTION_SIZE / 2);
+    const junctionZ = connWorldZ + vec.z * (HALLWAY_LENGTH + JUNCTION_SIZE / 2);
+
+    console.log(`  Junction center: (${junctionX}, ${junctionZ})`);
+
+    const junction = createJunctionChunk(junctionX, junctionZ);
+    connectChunks(hallway, dir, junction);
+  }
 }
 
-// Find which segment the player is in
-function findCurrentSegment(px: number, pz: number): HallwaySegment | null {
-  for (const [, segment] of hallwaySegments) {
-    const vec = getDirectionVector(segment.direction);
-    const isNS = segment.direction === "north" || segment.direction === "south";
+// ============== PLAYER LOCATION ==============
 
-    // Check if in hallway portion
-    if (isNS) {
-      const minZ = Math.min(
-        segment.startZ,
-        segment.startZ + vec.z * HALLWAY_LENGTH
-      );
-      const maxZ = Math.max(
-        segment.startZ,
-        segment.startZ + vec.z * HALLWAY_LENGTH
-      );
-      if (
-        px >= -HALLWAY_WIDTH / 2 - 1 + segment.startX &&
-        px <= HALLWAY_WIDTH / 2 + 1 + segment.startX &&
-        pz >= minZ - 1 &&
-        pz <= maxZ + JUNCTION_SIZE + 1
-      ) {
-        return segment;
+function findCurrentChunk(px: number, pz: number): Chunk | null {
+  const margin = 1;
+
+  for (const [, chunk] of chunks) {
+    if (!chunk.isLoaded) continue;
+
+    if (chunk.type === "hallway") {
+      const hall = chunk as HallwayChunk;
+      const isNS = hall.direction === "north" || hall.direction === "south";
+      const halfLength = HALLWAY_LENGTH / 2;
+      const halfWidth = HALLWAY_WIDTH / 2;
+
+      if (isNS) {
+        if (
+          px >= chunk.worldX - halfWidth - margin &&
+          px <= chunk.worldX + halfWidth + margin &&
+          pz >= chunk.worldZ - halfLength - margin &&
+          pz <= chunk.worldZ + halfLength + margin
+        ) {
+          return chunk;
+        }
+      } else {
+        if (
+          px >= chunk.worldX - halfLength - margin &&
+          px <= chunk.worldX + halfLength + margin &&
+          pz >= chunk.worldZ - halfWidth - margin &&
+          pz <= chunk.worldZ + halfWidth + margin
+        ) {
+          return chunk;
+        }
       }
     } else {
-      const minX = Math.min(
-        segment.startX,
-        segment.startX + vec.x * HALLWAY_LENGTH
-      );
-      const maxX = Math.max(
-        segment.startX,
-        segment.startX + vec.x * HALLWAY_LENGTH
-      );
+      const halfSize = JUNCTION_SIZE / 2;
       if (
-        pz >= -HALLWAY_WIDTH / 2 - 1 + segment.startZ &&
-        pz <= HALLWAY_WIDTH / 2 + 1 + segment.startZ &&
-        px >= minX - 1 &&
-        px <= maxX + JUNCTION_SIZE + 1
+        px >= chunk.worldX - halfSize - margin &&
+        px <= chunk.worldX + halfSize + margin &&
+        pz >= chunk.worldZ - halfSize - margin &&
+        pz <= chunk.worldZ + halfSize + margin
       ) {
-        return segment;
+        return chunk;
       }
     }
   }
   return null;
 }
 
-// Update loaded segments based on player position
+// ============== UPDATE SYSTEM ==============
+
 export function updateSegments(px: number, pz: number, scene: THREE.Scene) {
-  const current = findCurrentSegment(px, pz);
+  const current = findCurrentChunk(px, pz);
   if (!current) return;
 
-  currentSegmentId = current.id;
-  ensureChildren(current);
+  currentChunkId = current.id;
+  spawnConnectedChunks(current);
 
-  const toLoad = new Set<string>();
-  toLoad.add(current.id);
+  const toKeep = new Set<string>();
+  toKeep.add(current.id);
 
-  // Load parent
-  if (current.parentId) {
-    const parent = hallwaySegments.get(current.parentId);
-    if (parent) {
-      toLoad.add(parent.id);
-      ensureChildren(parent);
+  // Load immediate neighbors and their neighbors (2 levels deep)
+  for (const conn of current.connections) {
+    if (conn.connectedChunkId) {
+      toKeep.add(conn.connectedChunkId);
+      const neighbor = chunks.get(conn.connectedChunkId);
+      if (neighbor) {
+        if (!neighbor.isLoaded) loadChunk(neighbor, scene);
+        spawnConnectedChunks(neighbor);
+
+        // Level 2
+        for (const conn2 of neighbor.connections) {
+          if (conn2.connectedChunkId) {
+            toKeep.add(conn2.connectedChunkId);
+            const neighbor2 = chunks.get(conn2.connectedChunkId);
+            if (neighbor2 && !neighbor2.isLoaded) loadChunk(neighbor2, scene);
+          }
+        }
+      }
     }
   }
 
-  // Load children
-  current.children.forEach((childId) => {
-    toLoad.add(childId);
-    const child = hallwaySegments.get(childId);
-    if (child) {
-      ensureChildren(child);
-    }
-  });
-
-  // Load needed segments
-  toLoad.forEach((id) => {
-    const seg = hallwaySegments.get(id);
-    if (seg && !seg.isLoaded) {
-      loadSegment(seg, scene);
-    }
-  });
-
-  // Unload distant segments
-  if (loadedSegments.size > MAX_LOADED_SEGMENTS) {
-    const byDist = Array.from(loadedSegments)
+  if (loadedChunks.size > MAX_LOADED_SEGMENTS) {
+    const byDist = Array.from(loadedChunks)
       .map((id) => {
-        const s = hallwaySegments.get(id)!;
-        const dx = px - s.startX;
-        const dz = pz - s.startZ;
+        const c = chunks.get(id)!;
+        const dx = px - c.worldX;
+        const dz = pz - c.worldZ;
         return { id, dist: Math.sqrt(dx * dx + dz * dz) };
       })
       .sort((a, b) => b.dist - a.dist);
 
-    while (loadedSegments.size > MAX_LOADED_SEGMENTS && byDist.length > 0) {
+    while (loadedChunks.size > MAX_LOADED_SEGMENTS && byDist.length > 0) {
       const far = byDist.shift()!;
-      if (!toLoad.has(far.id)) {
-        const seg = hallwaySegments.get(far.id);
-        if (seg) unloadSegment(seg, scene);
+      if (!toKeep.has(far.id)) {
+        const chunk = chunks.get(far.id);
+        if (chunk) unloadChunk(chunk, scene);
       }
     }
   }
 }
 
-// Check collision with walls
+// ============== COLLISION ==============
+
 export function checkWallCollision(x: number, z: number): boolean {
   const margin = 0.4;
 
-  for (const [, segment] of hallwaySegments) {
-    if (!segment.isLoaded) continue;
+  for (const [, chunk] of chunks) {
+    if (!chunk.isLoaded) continue;
 
-    const dir = segment.direction;
-    const vec = getDirectionVector(dir);
-    const isNS = dir === "north" || dir === "south";
+    if (chunk.type === "hallway") {
+      const hall = chunk as HallwayChunk;
+      const isNS = hall.direction === "north" || hall.direction === "south";
+      const halfLength = HALLWAY_LENGTH / 2;
+      const halfWidth = HALLWAY_WIDTH / 2;
 
-    // Hallway center
-    const centerX = segment.startX + (vec.x * HALLWAY_LENGTH) / 2;
-    const centerZ = segment.startZ + (vec.z * HALLWAY_LENGTH) / 2;
-
-    // Junction position (end of hallway)
-    const junctionX = segment.startX + vec.x * HALLWAY_LENGTH;
-    const junctionZ = segment.startZ + vec.z * HALLWAY_LENGTH;
-
-    if (isNS) {
-      const minZ = Math.min(
-        segment.startZ,
-        segment.startZ + vec.z * HALLWAY_LENGTH
-      );
-      const maxZ = Math.max(
-        segment.startZ,
-        segment.startZ + vec.z * HALLWAY_LENGTH
-      );
-
-      // Check if in hallway corridor
-      if (z >= minZ && z <= maxZ) {
-        if (Math.abs(x - centerX) <= HALLWAY_WIDTH / 2 - margin) {
-          return false; // Inside hallway, no collision
+      if (isNS) {
+        if (
+          z >= chunk.worldZ - halfLength &&
+          z <= chunk.worldZ + halfLength &&
+          Math.abs(x - chunk.worldX) <= halfWidth - margin
+        ) {
+          return false;
         }
-      }
-
-      // Check if in junction area at end of hallway
-      if (
-        x >= junctionX - JUNCTION_SIZE / 2 + margin &&
-        x <= junctionX + JUNCTION_SIZE / 2 - margin &&
-        z >= junctionZ - JUNCTION_SIZE / 2 + margin &&
-        z <= junctionZ + JUNCTION_SIZE / 2 - margin
-      ) {
-        return false; // Inside junction, no collision
+      } else {
+        if (
+          x >= chunk.worldX - halfLength &&
+          x <= chunk.worldX + halfLength &&
+          Math.abs(z - chunk.worldZ) <= halfWidth - margin
+        ) {
+          return false;
+        }
       }
     } else {
-      const minX = Math.min(
-        segment.startX,
-        segment.startX + vec.x * HALLWAY_LENGTH
-      );
-      const maxX = Math.max(
-        segment.startX,
-        segment.startX + vec.x * HALLWAY_LENGTH
-      );
-
-      // Check if in hallway corridor
-      if (x >= minX && x <= maxX) {
-        if (Math.abs(z - centerZ) <= HALLWAY_WIDTH / 2 - margin) {
-          return false; // Inside hallway, no collision
-        }
-      }
-
-      // Check if in junction area at end of hallway
+      // Junction - open on all sides, so just check if player is within the junction area
+      const halfSize = JUNCTION_SIZE / 2;
       if (
-        x >= junctionX - JUNCTION_SIZE / 2 + margin &&
-        x <= junctionX + JUNCTION_SIZE / 2 - margin &&
-        z >= junctionZ - JUNCTION_SIZE / 2 + margin &&
-        z <= junctionZ + JUNCTION_SIZE / 2 - margin
+        x >= chunk.worldX - halfSize &&
+        x <= chunk.worldX + halfSize &&
+        z >= chunk.worldZ - halfSize &&
+        z <= chunk.worldZ + halfSize
       ) {
-        return false; // Inside junction, no collision
+        return false;
       }
     }
   }
 
-  // Not in any valid walkable area - collision
   return true;
 }
 
-// Initialize the maze
+// ============== INITIALIZATION ==============
+
 export function initializeMaze(scene: THREE.Scene): { x: number; z: number } {
-  // Create starting segment going north
-  const startSegment = createHallwaySegment(
-    0,
-    HALLWAY_LENGTH / 2,
-    "north",
-    null
-  );
-  currentSegmentId = startSegment.id;
+  const startJunction = createJunctionChunk(0, 0);
+  spawnConnectedChunks(startJunction);
+  loadChunk(startJunction, scene);
 
-  // Ensure children exist
-  ensureChildren(startSegment);
+  // Load immediate neighbors only
+  for (const conn of startJunction.connections) {
+    if (conn.connectedChunkId) {
+      const hallway = chunks.get(conn.connectedChunkId);
+      if (hallway) {
+        loadChunk(hallway, scene);
+        spawnConnectedChunks(hallway);
+        // Load the junction at the end
+        for (const hConn of hallway.connections) {
+          if (hConn.connectedChunkId) {
+            const junction = chunks.get(hConn.connectedChunkId);
+            if (junction) loadChunk(junction, scene);
+          }
+        }
+      }
+    }
+  }
 
-  // Load starting segment
-  loadSegment(startSegment, scene);
-
-  // Return starting position
-  return { x: 0, z: HALLWAY_LENGTH / 2 - 2 };
+  currentChunkId = startJunction.id;
+  return { x: 0, z: 0 };
 }

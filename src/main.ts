@@ -1,6 +1,11 @@
 import * as THREE from "three";
 import "./style.css";
-import { initializeMaze, allWallLights, allPortraits } from "./maze";
+import {
+  initializeMaze,
+  allWallLights,
+  allPortraits,
+  setDebugMode,
+} from "./maze";
 import { Player } from "./player";
 
 // Scene setup
@@ -90,3 +95,29 @@ instructions.innerHTML = `
   </div>
 `;
 document.body.appendChild(instructions);
+
+// Debug menu
+const debugMenu = document.createElement("div");
+debugMenu.innerHTML = `
+  <div id="debug-menu" style="position: fixed; top: 20px; right: 20px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 5px; font-family: monospace; font-size: 12px; color: #fff;">
+    <div style="margin-bottom: 10px; font-weight: bold; color: #ff6600;">Debug Menu</div>
+    <label style="display: flex; align-items: center; cursor: pointer;">
+      <input type="checkbox" id="debug-toggle" checked style="margin-right: 8px;">
+      Show chunk boundaries
+    </label>
+    <div id="debug-info" style="margin-top: 10px; color: #888; display: block;">
+      <div>Red lines = chunk bounds</div>
+      <div>Green lines = junction openings</div>
+      <div>Labels show chunk ID & type</div>
+    </div>
+  </div>
+`;
+document.body.appendChild(debugMenu);
+
+const debugToggle = document.getElementById("debug-toggle") as HTMLInputElement;
+const debugInfo = document.getElementById("debug-info") as HTMLElement;
+
+debugToggle.addEventListener("change", () => {
+  setDebugMode(debugToggle.checked, scene);
+  debugInfo.style.display = debugToggle.checked ? "block" : "none";
+});
