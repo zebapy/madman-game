@@ -14,3 +14,10 @@ export const MAX_LOADED_SEGMENTS = 12;
 
 // Player
 export const MOVE_SPEED = 0.08;
+export const SPRINT_SPEED = 0.12;
+
+// Stamina
+export const MAX_STAMINA = 100;
+export const STAMINA_DRAIN_RATE = 0.5; // Per frame while sprinting
+export const STAMINA_REGEN_RATE = 0.3; // Per frame while not sprinting
+export const STAMINA_REGEN_DELAY = 60; // Frames to wait before regenerating

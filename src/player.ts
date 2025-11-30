@@ -1,6 +1,7 @@
 import * as THREE from "three";
-import { MOVE_SPEED } from "./constants";
+import { MOVE_SPEED, SPRINT_SPEED, MAX_STAMINA, STAMINA_DRAIN_RATE, STAMINA_REGEN_RATE, STAMINA_REGEN_DELAY } from "./constants";
 import { checkWallCollision, updateSegments } from "./maze";
+import { audioSystem } from "./audio";
 
 export class Player {
   private camera: THREE.PerspectiveCamera;
@@ -13,6 +14,19 @@ export class Player {
   private isPointerLocked = false;
   private isMouseDown = false;
 
+  // Camera shake / head bob for footsteps
+  private bobTime = 0;
+  private readonly bobFrequency = 12; // How fast the bob cycles
+  private readonly bobAmplitudeY = 0.03; // Vertical bob amount
+  private readonly bobAmplitudeX = 0.015; // Horizontal sway amount
+  private baseY = 0; // Store the base camera height
+
+  // Stamina system
+  private stamina = MAX_STAMINA;
+  private staminaRegenDelay = 0;
+  private staminaBar: HTMLElement | null = null;
+  private staminaContainer: HTMLElement | null = null;
+
   constructor(
     camera: THREE.PerspectiveCamera,
     scene: THREE.Scene,
@@ -21,6 +35,9 @@ export class Player {
     this.camera = camera;
     this.scene = scene;
     this.renderer = renderer;
+
+    this.staminaBar = document.getElementById("stamina-bar");
+    this.staminaContainer = document.getElementById("stamina-container");
 
     this.setupEventListeners();
   }
@@ -60,8 +77,30 @@ export class Player {
     });
   }
 
+  private updateStaminaUI() {
+    if (!this.staminaBar || !this.staminaContainer) return;
+
+    const staminaPercent = (this.stamina / MAX_STAMINA) * 100;
+    this.staminaBar.style.width = `${staminaPercent}%`;
+
+    // Show/hide stamina bar based on stamina level
+    if (this.stamina < MAX_STAMINA) {
+      this.staminaContainer.classList.add("visible");
+    } else {
+      this.staminaContainer.classList.remove("visible");
+    }
+
+    // Add low stamina warning color
+    if (staminaPercent < 25) {
+      this.staminaBar.classList.add("low");
+    } else {
+      this.staminaBar.classList.remove("low");
+    }
+  }
+
   setPosition(x: number, y: number, z: number) {
     this.camera.position.set(x, y, z);
+    this.baseY = y; // Store base height for head bob
   }
 
   update() {
@@ -73,9 +112,29 @@ export class Player {
     if (this.keys["KeyA"] || this.keys["ArrowLeft"]) direction.x -= 1;
     if (this.keys["KeyD"] || this.keys["ArrowRight"]) direction.x += 1;
 
+    let isMoving = false;
+    const wantsToRun = this.keys["ShiftLeft"] || this.keys["ShiftRight"];
+    const canRun = this.stamina > 0;
+    const isRunning = wantsToRun && canRun && direction.length() > 0;
+
+    // Update stamina
+    if (isRunning) {
+      this.stamina = Math.max(0, this.stamina - STAMINA_DRAIN_RATE);
+      this.staminaRegenDelay = STAMINA_REGEN_DELAY;
+    } else if (this.staminaRegenDelay > 0) {
+      this.staminaRegenDelay--;
+    } else {
+      this.stamina = Math.min(MAX_STAMINA, this.stamina + STAMINA_REGEN_RATE);
+    }
+
+    // Update stamina UI
+    this.updateStaminaUI();
+
     if (direction.length() > 0) {
+      isMoving = true;
       direction.normalize();
-      direction.multiplyScalar(MOVE_SPEED);
+      const currentSpeed = isRunning ? SPRINT_SPEED : MOVE_SPEED;
+      direction.multiplyScalar(currentSpeed);
 
       // Rotate movement direction by camera yaw
       const rotatedDirection = new THREE.Vector3(
@@ -96,11 +155,59 @@ export class Player {
       }
     }
 
+    // Apply footstep camera shake (head bob)
+    if (isMoving) {
+      this.bobTime += this.bobFrequency * 0.016; // ~60fps timestep
+      const bobY = Math.sin(this.bobTime) * this.bobAmplitudeY;
+      const bobX = Math.sin(this.bobTime * 0.5) * this.bobAmplitudeX;
+
+      this.camera.position.y = this.baseY + bobY;
+      // Apply subtle horizontal sway based on camera yaw
+      this.camera.position.x += Math.cos(this.yaw) * bobX;
+      this.camera.position.z += Math.sin(this.yaw) * bobX;
+    } else {
+      // Smoothly return to base position when not moving
+      this.camera.position.y += (this.baseY - this.camera.position.y) * 0.1;
+    }
+
     this.camera.rotation.order = "YXZ";
     this.camera.rotation.y = this.yaw;
     this.camera.rotation.x = this.pitch;
 
-    // Update loaded segments based on new position
-    updateSegments(this.camera.position.x, this.camera.position.z, this.scene);
+    // Update loaded segments based on new position and handle audio events
+    const chunkInfo = updateSegments(
+      this.camera.position.x,
+      this.camera.position.z,
+      this.scene
+    );
+
+    // Update audio listener position (player's ears)
+    const forwardX = Math.sin(this.yaw);
+    const forwardZ = -Math.cos(this.yaw);
+    audioSystem.updateListenerPosition(
+      this.camera.position.x,
+      this.camera.position.y,
+      this.camera.position.z,
+      forwardX,
+      forwardZ
+    );
+
+    if (chunkInfo) {
+      // Handle junction entry events
+      if (chunkInfo.type === "junction" && chunkInfo.changed) {
+        audioSystem.onJunctionEnter(
+          chunkInfo.id,
+          chunkInfo.worldX,
+          chunkInfo.worldZ
+        );
+      }
+
+      // Handle hallway ambient sounds
+      if (chunkInfo.type === "hallway") {
+        audioSystem.onHallwayUpdate(chunkInfo.worldX, chunkInfo.worldZ);
+      } else {
+        audioSystem.onJunctionUpdate();
+      }
+    }
   }
 }

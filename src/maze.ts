@@ -29,6 +29,7 @@ import {
   createWallLampGroup,
   createPortraitGroup,
   createHotelDoorGroup,
+  createFloorDebris,
 } from "./decorations";
 
 // ============== STATE ==============
@@ -354,6 +355,10 @@ function createHallwayMesh(chunk: HallwayChunk): THREE.Group {
         allPortraits.push(portrait);
       }
     }
+
+    // Floor debris for creepy atmosphere
+    const debris = createFloorDebris(length, HALLWAY_WIDTH, chunk.seed + 5555, true);
+    group.add(debris);
   } else {
     // East-West: walls along Z axis
     const wallGeom = new THREE.PlaneGeometry(length, HALLWAY_HEIGHT);
@@ -427,6 +432,10 @@ function createHallwayMesh(chunk: HallwayChunk): THREE.Group {
       }
       doorIndex++;
     }
+
+    // Floor debris for creepy atmosphere
+    const debris = createFloorDebris(length, HALLWAY_WIDTH, chunk.seed + 5555, false);
+    group.add(debris);
   }
 
   return group;
@@ -596,6 +605,10 @@ function createJunctionMesh(chunk: JunctionChunk): THREE.Group {
   group.add(light);
   chunk.lights.push(light);
   allWallLights.push(light);
+
+  // Floor debris in junction (less than hallways, but still present)
+  const junctionDebris = createFloorDebris(size, size, chunk.seed + 7777, true);
+  group.add(junctionDebris);
 
   return group;
 }
@@ -871,10 +884,23 @@ function findCurrentChunk(px: number, pz: number): Chunk | null {
 
 // ============== UPDATE SYSTEM ==============
 
-export function updateSegments(px: number, pz: number, scene: THREE.Scene) {
-  const current = findCurrentChunk(px, pz);
-  if (!current) return;
+export interface ChunkInfo {
+  id: string;
+  type: "hallway" | "junction";
+  changed: boolean;
+  worldX: number;
+  worldZ: number;
+}
 
+export function updateSegments(
+  px: number,
+  pz: number,
+  scene: THREE.Scene
+): ChunkInfo | null {
+  const current = findCurrentChunk(px, pz);
+  if (!current) return null;
+
+  const changed = currentChunkId !== current.id;
   currentChunkId = current.id;
   spawnConnectedChunks(current);
 
@@ -920,6 +946,14 @@ export function updateSegments(px: number, pz: number, scene: THREE.Scene) {
       }
     }
   }
+
+  return {
+    id: current.id,
+    type: current.type,
+    changed,
+    worldX: current.worldX,
+    worldZ: current.worldZ,
+  };
 }
 
 // ============== COLLISION ==============
