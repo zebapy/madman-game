@@ -67,7 +67,8 @@ export class Player {
   update() {
     const direction = new THREE.Vector3();
 
-    if (this.keys["KeyW"] || this.keys["ArrowUp"] || this.isMouseDown) direction.z -= 1;
+    if (this.keys["KeyW"] || this.keys["ArrowUp"] || this.isMouseDown)
+      direction.z -= 1;
     if (this.keys["KeyS"] || this.keys["ArrowDown"]) direction.z += 1;
     if (this.keys["KeyA"] || this.keys["ArrowLeft"]) direction.x -= 1;
     if (this.keys["KeyD"] || this.keys["ArrowRight"]) direction.x += 1;
