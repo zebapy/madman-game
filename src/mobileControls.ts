@@ -11,8 +11,7 @@ export interface MobileControlsState {
 export class MobileControls {
   private joystickContainer: HTMLElement | null = null;
   private joystickKnob: HTMLElement | null = null;
-  private lookJoystickContainer: HTMLElement | null = null;
-  private lookJoystickKnob: HTMLElement | null = null;
+  private lookArea: HTMLElement | null = null;
   private sprintButton: HTMLElement | null = null;
   private controlsContainer: HTMLElement | null = null;
 
@@ -22,10 +21,9 @@ export class MobileControls {
   private joystickCenterY = 0;
   private joystickMaxRadius = 40;
 
-  private lookJoystickTouchId: number | null = null;
-  private lookJoystickCenterX = 0;
-  private lookJoystickCenterY = 0;
-  private lookJoystickMaxRadius = 40;
+  private lookTouchId: number | null = null;
+  private lastLookX = 0;
+  private lastLookY = 0;
 
   public state: MobileControlsState = {
     moveX: 0,
@@ -67,11 +65,7 @@ export class MobileControls {
           <div id="joystick-knob"></div>
         </div>
       </div>
-      <div id="look-joystick-container">
-        <div id="look-joystick-base">
-          <div id="look-joystick-knob"></div>
-        </div>
-      </div>
+      <div id="look-area"></div>
       <div id="sprint-button">SPRINT</div>
     `;
     document.body.appendChild(this.controlsContainer);
@@ -79,8 +73,7 @@ export class MobileControls {
     // Get references to elements
     this.joystickContainer = document.getElementById("joystick-container");
     this.joystickKnob = document.getElementById("joystick-knob");
-    this.lookJoystickContainer = document.getElementById("look-joystick-container");
-    this.lookJoystickKnob = document.getElementById("look-joystick-knob");
+    this.lookArea = document.getElementById("look-area");
     this.sprintButton = document.getElementById("sprint-button");
 
     // Add styles
@@ -138,39 +131,19 @@ export class MobileControls {
         transition: transform 0.05s ease-out;
       }
 
-      #look-joystick-container {
+      #look-area {
         position: absolute;
-        bottom: clamp(20px, 5vh, 60px);
-        right: clamp(20px, 5vw, 60px);
-        width: clamp(100px, 25vw, 140px);
-        height: clamp(100px, 25vw, 140px);
+        top: 0;
+        right: 0;
+        width: 50%;
+        height: 100%;
         pointer-events: auto;
         touch-action: none;
       }
 
-      #look-joystick-base {
-        width: 100%;
-        height: 100%;
-        background: rgba(100, 150, 255, 0.15);
-        border: 2px solid rgba(100, 150, 255, 0.3);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      #look-joystick-knob {
-        width: 45%;
-        height: 45%;
-        background: rgba(100, 150, 255, 0.4);
-        border: 2px solid rgba(100, 150, 255, 0.6);
-        border-radius: 50%;
-        transition: transform 0.05s ease-out;
-      }
-
       #sprint-button {
         position: absolute;
-        bottom: clamp(140px, 30vh, 200px);
+        bottom: clamp(20px, 5vh, 60px);
         right: clamp(20px, 5vw, 60px);
         width: clamp(70px, 18vw, 100px);
         height: clamp(70px, 18vw, 100px);
@@ -200,7 +173,7 @@ export class MobileControls {
   }
 
   private setupEventListeners() {
-    if (!this.joystickContainer || !this.lookJoystickContainer || !this.sprintButton) return;
+    if (!this.joystickContainer || !this.lookArea || !this.sprintButton) return;
 
     // Joystick controls
     this.joystickContainer.addEventListener(
@@ -224,27 +197,19 @@ export class MobileControls {
       { passive: false }
     );
 
-    // Look joystick controls
-    this.lookJoystickContainer.addEventListener(
-      "touchstart",
-      this.onLookJoystickStart.bind(this),
-      { passive: false }
-    );
-    this.lookJoystickContainer.addEventListener(
-      "touchmove",
-      this.onLookJoystickMove.bind(this),
-      { passive: false }
-    );
-    this.lookJoystickContainer.addEventListener(
-      "touchend",
-      this.onLookJoystickEnd.bind(this),
-      { passive: false }
-    );
-    this.lookJoystickContainer.addEventListener(
-      "touchcancel",
-      this.onLookJoystickEnd.bind(this),
-      { passive: false }
-    );
+    // Look area controls
+    this.lookArea.addEventListener("touchstart", this.onLookStart.bind(this), {
+      passive: false,
+    });
+    this.lookArea.addEventListener("touchmove", this.onLookMove.bind(this), {
+      passive: false,
+    });
+    this.lookArea.addEventListener("touchend", this.onLookEnd.bind(this), {
+      passive: false,
+    });
+    this.lookArea.addEventListener("touchcancel", this.onLookEnd.bind(this), {
+      passive: false,
+    });
 
     // Sprint button
     this.sprintButton.addEventListener(
@@ -328,65 +293,44 @@ export class MobileControls {
     }
   }
 
-  private onLookJoystickStart(e: TouchEvent) {
+  private onLookStart(e: TouchEvent) {
     e.preventDefault();
-    if (this.lookJoystickTouchId !== null) return;
+    if (this.lookTouchId !== null) return;
 
     const touch = e.changedTouches[0];
-    this.lookJoystickTouchId = touch.identifier;
-
-    const rect = this.lookJoystickContainer!.getBoundingClientRect();
-    this.lookJoystickCenterX = rect.left + rect.width / 2;
-    this.lookJoystickCenterY = rect.top + rect.height / 2;
-
-    this.updateLookJoystick(touch.clientX, touch.clientY);
+    this.lookTouchId = touch.identifier;
+    this.lastLookX = touch.clientX;
+    this.lastLookY = touch.clientY;
   }
 
-  private onLookJoystickMove(e: TouchEvent) {
+  private onLookMove(e: TouchEvent) {
     e.preventDefault();
-    if (this.lookJoystickTouchId === null) return;
+    if (this.lookTouchId === null) return;
 
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
-      if (touch.identifier === this.lookJoystickTouchId) {
-        this.updateLookJoystick(touch.clientX, touch.clientY);
+      if (touch.identifier === this.lookTouchId) {
+        const dx = touch.clientX - this.lastLookX;
+        const dy = touch.clientY - this.lastLookY;
+
+        this.state.lookX = dx;
+        this.state.lookY = dy;
+
+        this.lastLookX = touch.clientX;
+        this.lastLookY = touch.clientY;
         break;
       }
     }
   }
 
-  private onLookJoystickEnd(e: TouchEvent) {
+  private onLookEnd(e: TouchEvent) {
     for (let i = 0; i < e.changedTouches.length; i++) {
-      if (e.changedTouches[i].identifier === this.lookJoystickTouchId) {
-        this.lookJoystickTouchId = null;
+      if (e.changedTouches[i].identifier === this.lookTouchId) {
+        this.lookTouchId = null;
         this.state.lookX = 0;
         this.state.lookY = 0;
-
-        if (this.lookJoystickKnob) {
-          this.lookJoystickKnob.style.transform = "translate(0px, 0px)";
-        }
         break;
       }
-    }
-  }
-
-  private updateLookJoystick(touchX: number, touchY: number) {
-    let dx = touchX - this.lookJoystickCenterX;
-    let dy = touchY - this.lookJoystickCenterY;
-
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    if (distance > this.lookJoystickMaxRadius) {
-      dx = (dx / distance) * this.lookJoystickMaxRadius;
-      dy = (dy / distance) * this.lookJoystickMaxRadius;
-    }
-
-    // Normalize to -1 to 1 (guard against division by zero)
-    const radius = this.lookJoystickMaxRadius || 1;
-    this.state.lookX = dx / radius;
-    this.state.lookY = dy / radius;
-
-    if (this.lookJoystickKnob) {
-      this.lookJoystickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
     }
   }
 
@@ -403,6 +347,12 @@ export class MobileControls {
     if (this.sprintButton) {
       this.sprintButton.classList.remove("active");
     }
+  }
+
+  // Call this after reading look values to reset them
+  public consumeLookDelta() {
+    this.state.lookX = 0;
+    this.state.lookY = 0;
   }
 }
 
