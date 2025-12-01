@@ -1,9 +1,10 @@
 import * as THREE from "three";
-import { createWallpaperTexture, createWoodFloorTexture } from "./textures";
+import { createWallpaperTexture, createFloorTexture } from "./textures";
+import { TEXTURE_STYLE } from "./constants";
 
 // Create textures
 const wallpaperTexture = createWallpaperTexture();
-const woodFloorTexture = createWoodFloorTexture();
+const floorTexture = createFloorTexture();
 
 // Create materials
 export const wallMaterial = new THREE.MeshStandardMaterial({
@@ -13,11 +14,12 @@ export const wallMaterial = new THREE.MeshStandardMaterial({
   bumpScale: 0.02,
 });
 
+// Floor material properties vary by style
 export const floorMaterial = new THREE.MeshStandardMaterial({
-  map: woodFloorTexture,
-  roughness: 0.7,
-  metalness: 0.1,
-  envMapIntensity: 0.3,
+  map: floorTexture,
+  roughness: TEXTURE_STYLE === "modern" ? 0.95 : 0.7,
+  metalness: TEXTURE_STYLE === "modern" ? 0.0 : 0.1,
+  envMapIntensity: TEXTURE_STYLE === "modern" ? 0.1 : 0.3,
 });
 
 export const ceilingMaterial = new THREE.MeshStandardMaterial({

@@ -21,3 +21,6 @@ export const MAX_STAMINA = 100;
 export const STAMINA_DRAIN_RATE = 0.5; // Per frame while sprinting
 export const STAMINA_REGEN_RATE = 0.3; // Per frame while not sprinting
 export const STAMINA_REGEN_DELAY = 60; // Frames to wait before regenerating
+
+// Texture style: "modern" (dirty hotel) or "classic" (Victorian/wood)
+export const TEXTURE_STYLE: "modern" | "classic" = "modern";
