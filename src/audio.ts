@@ -23,7 +23,11 @@ interface AudioConfig {
 const DEFAULT_CONFIG: AudioConfig = {
   junctionSounds: ["/audio/knock3.mp3", "/audio/knock6.mp3"],
   hallwayAmbientSounds: ["/audio/floorcreak.mp3", "/audio/doorcreak.mp3"],
-  doorSlamSounds: ["/audio/doorcreak.mp3", "/audio/knock4.mp3", "/audio/knock6.mp3"],
+  doorSlamSounds: [
+    "/audio/doorcreak.mp3",
+    "/audio/knock4.mp3",
+    "/audio/knock6.mp3",
+  ],
   sprintEndSound: "/audio/endsprintbreath.mp3",
   musicTrack: "/audio/winddrone2.mp3",
   hallwayAmbientChance: 0.002, // ~0.2% chance per frame

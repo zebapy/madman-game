@@ -517,7 +517,7 @@ export function createHotelDoorGroup(
   const hingeOffset = side === "left" ? -DOOR_WIDTH / 2 : DOOR_WIDTH / 2;
   doorPivot.position.set(hingeOffset, 0, 0.02);
   doorGroup.add(doorPivot);
-  
+
   // Store base rotation for slam animation
   const baseRotation = 0;
 
