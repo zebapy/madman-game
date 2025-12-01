@@ -119,11 +119,11 @@ export class Player {
 
     // Handle mobile touch controls
     if (mobileControls.isEnabled()) {
-      // Apply mobile look controls
-      this.yaw -= mobileControls.state.lookX * 0.005;
-      this.pitch -= mobileControls.state.lookY * 0.005;
+      // Apply mobile look controls (continuous joystick-based)
+      const lookSensitivity = 0.03;
+      this.yaw -= mobileControls.state.lookX * lookSensitivity;
+      this.pitch -= mobileControls.state.lookY * lookSensitivity;
       this.pitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, this.pitch));
-      mobileControls.consumeLookDelta();
 
       // Mobile movement
       if (Math.abs(mobileControls.state.moveX) > 0.1 || Math.abs(mobileControls.state.moveY) > 0.1) {
