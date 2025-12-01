@@ -16,6 +16,59 @@ import { Player } from "./player";
 import { audioSystem } from "./audio";
 import { allTVLights } from "./decorations";
 
+// Create fade overlay and intro text
+function createIntroElements() {
+  // Fade overlay
+  const fadeOverlay = document.createElement("div");
+  fadeOverlay.id = "fade-overlay";
+  document.body.appendChild(fadeOverlay);
+
+  // Intro text
+  const introText = document.createElement("div");
+  introText.id = "intro-text";
+  introText.innerHTML = `
+    <span class="title">madman writing on the wall says</span>
+    <span class="line">"1 knock, wrong way"</span>
+    <span class="line">"2 knocks, try again"</span>
+    <span class="line">"3 knocks, run"</span>
+  `;
+  document.body.appendChild(introText);
+
+  return { fadeOverlay, introText };
+}
+
+// Animate intro sequence
+function playIntroSequence(fadeOverlay: HTMLElement, introText: HTMLElement) {
+  // Start fade from black after a short delay
+  setTimeout(() => {
+    fadeOverlay.classList.add("fade-out");
+  }, 500);
+
+  // Show intro text container
+  setTimeout(() => {
+    introText.classList.add("visible");
+  }, 1000);
+
+  // Animate each line with staggered timing
+  const lines = introText.querySelectorAll(".line");
+  lines.forEach((line, index) => {
+    setTimeout(() => {
+      line.classList.add("visible");
+    }, 1500 + index * 800);
+  });
+
+  // Fade out intro text
+  setTimeout(() => {
+    introText.classList.remove("visible");
+  }, 7000);
+
+  // Remove overlay from DOM after animations complete
+  setTimeout(() => {
+    fadeOverlay.remove();
+    introText.remove();
+  }, 9000);
+}
+
 // Scene setup
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x050505);
@@ -125,6 +178,10 @@ function animate() {
 
   composer.render();
 }
+
+// Create intro elements and start the intro sequence
+const { fadeOverlay, introText } = createIntroElements();
+playIntroSequence(fadeOverlay, introText);
 
 animate();
 

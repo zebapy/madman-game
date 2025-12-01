@@ -49,3 +49,64 @@ canvas {
 #stamina-bar.low {
   background: rgba(255, 100, 100, 0.85);
 }
+
+/* Fade from black overlay */
+#fade-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 2s ease-out;
+}
+
+#fade-overlay.fade-out {
+  opacity: 0;
+}
+
+/* Intro text */
+#intro-text {
+  position: fixed;
+  top: 40px;
+  left: 40px;
+  color: #8b0000;
+  font-family: "Georgia", serif;
+  font-size: 18px;
+  font-style: italic;
+  line-height: 1.8;
+  z-index: 1001;
+  text-shadow: 0 0 10px rgba(139, 0, 0, 0.5), 0 0 20px rgba(139, 0, 0, 0.3);
+  white-space: pre-line;
+  opacity: 0;
+  transition: opacity 1.5s ease-in-out;
+}
+
+#intro-text.visible {
+  opacity: 1;
+}
+
+#intro-text .title {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 15px;
+  display: block;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+#intro-text .line {
+  display: block;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 1s ease-out, transform 1s ease-out;
+}
+
+#intro-text .line.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
