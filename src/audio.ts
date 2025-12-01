@@ -11,6 +11,7 @@ export interface AudioPosition {
 interface AudioConfig {
   junctionSounds: string[];
   hallwayAmbientSounds: string[];
+  doorSlamSounds: string[];
   sprintEndSound: string;
   musicTrack: string;
   hallwayAmbientChance: number; // Chance per update tick (0-1)
@@ -22,6 +23,7 @@ interface AudioConfig {
 const DEFAULT_CONFIG: AudioConfig = {
   junctionSounds: ["/audio/knock3.mp3", "/audio/knock6.mp3"],
   hallwayAmbientSounds: ["/audio/floorcreak.mp3", "/audio/doorcreak.mp3"],
+  doorSlamSounds: ["/audio/doorcreak.mp3", "/audio/knock4.mp3", "/audio/knock6.mp3"],
   sprintEndSound: "/audio/endsprintbreath.mp3",
   musicTrack: "/audio/winddrone2.mp3",
   hallwayAmbientChance: 0.002, // ~0.2% chance per frame
@@ -81,6 +83,7 @@ class AudioSystem {
     const allSounds = [
       ...this.config.junctionSounds,
       ...this.config.hallwayAmbientSounds,
+      ...this.config.doorSlamSounds,
       this.config.sprintEndSound,
     ];
 
@@ -261,6 +264,25 @@ class AudioSystem {
     const buffer = this.audioBuffers.get(this.config.sprintEndSound);
     if (buffer) {
       this.playBuffer(buffer, 0.6);
+    }
+  }
+
+  // Play door slam sound at a specific position
+  playDoorSlam(worldX: number, worldY: number, worldZ: number): void {
+    if (this.config.doorSlamSounds.length === 0) return;
+
+    const url =
+      this.config.doorSlamSounds[
+        Math.floor(Math.random() * this.config.doorSlamSounds.length)
+      ];
+
+    const buffer = this.audioBuffers.get(url);
+    if (buffer) {
+      this.playBufferAtPosition(
+        buffer,
+        { x: worldX, y: worldY, z: worldZ },
+        0.9 + Math.random() * 0.2 // Slightly varied volume
+      );
     }
   }
 

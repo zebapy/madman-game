@@ -1,4 +1,10 @@
 import * as THREE from "three";
+import {
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  PixelationEffect,
+} from "postprocessing";
 import "./style.css";
 import {
   initializeMaze,
@@ -30,6 +36,12 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.getElementById("app")!.appendChild(renderer.domElement);
+
+// Post-processing setup
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const pixelationEffect = new PixelationEffect(4);
+composer.addPass(new EffectPass(camera, pixelationEffect));
 
 // Lighting
 const ambientLight = new THREE.AmbientLight(0x1a1010, 0.6);
@@ -97,6 +109,7 @@ window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
 
 // Main animation loop
@@ -110,7 +123,7 @@ function animate() {
   updatePortraits(time);
   updateTVLights(time);
 
-  renderer.render(scene, camera);
+  composer.render();
 }
 
 animate();

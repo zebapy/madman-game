@@ -6,6 +6,19 @@ import { HALLWAY_WIDTH, DOOR_WIDTH, DOOR_HEIGHT } from "./constants";
 // Track TV lights for flickering animation
 export const allTVLights: THREE.PointLight[] = [];
 
+// Door tracking for slam effects
+export interface DoorInfo {
+  group: THREE.Group; // The door group (for world position)
+  pivot: THREE.Group; // The pivot to rotate for slamming
+  side: "left" | "right"; // Which side the door is on
+  baseRotation: number; // The door's original rotation (0 or ajar angle)
+  isSlamming: boolean; // Is currently in a slam animation
+  slamCooldown: number; // Time until door can slam again
+  hasSlammed: boolean; // Has this door slammed for the current approach
+}
+
+export const allDoors: DoorInfo[] = [];
+
 // Floor debris types for creepy hotel atmosphere
 type DebrisType =
   | "paper"
@@ -504,6 +517,9 @@ export function createHotelDoorGroup(
   const hingeOffset = side === "left" ? -DOOR_WIDTH / 2 : DOOR_WIDTH / 2;
   doorPivot.position.set(hingeOffset, 0, 0.02);
   doorGroup.add(doorPivot);
+  
+  // Store base rotation for slam animation
+  const baseRotation = 0;
 
   // Door panel (slightly lighter wood) - now a child of pivot
   const doorGeometry = new THREE.BoxGeometry(DOOR_WIDTH, DOOR_HEIGHT, 0.08);
@@ -611,6 +627,19 @@ export function createHotelDoorGroup(
     side === "left" ? -HALLWAY_WIDTH / 2 + 0.05 : HALLWAY_WIDTH / 2 - 0.05;
   doorGroup.position.set(wallOffset, 0, localPos);
   doorGroup.rotation.y = side === "left" ? Math.PI / 2 : -Math.PI / 2;
+
+  // Track this door for slam effects (only non-ajar doors can slam)
+  if (!isAjar) {
+    allDoors.push({
+      group: doorGroup,
+      pivot: doorPivot,
+      side,
+      baseRotation,
+      isSlamming: false,
+      slamCooldown: 0,
+      hasSlammed: false,
+    });
+  }
 
   return doorGroup;
 }
