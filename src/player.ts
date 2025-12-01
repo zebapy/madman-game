@@ -9,6 +9,7 @@ import {
 } from "./constants";
 import { checkWallCollision, updateSegments } from "./maze";
 import { audioSystem } from "./audio";
+import { mobileControls } from "./mobileControls";
 
 export class Player {
   private camera: THREE.PerspectiveCamera;
@@ -116,6 +117,22 @@ export class Player {
   update() {
     const direction = new THREE.Vector3();
 
+    // Handle mobile touch controls
+    if (mobileControls.isEnabled()) {
+      // Apply mobile look controls
+      this.yaw -= mobileControls.state.lookX * 0.005;
+      this.pitch -= mobileControls.state.lookY * 0.005;
+      this.pitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, this.pitch));
+      mobileControls.consumeLookDelta();
+
+      // Mobile movement
+      if (Math.abs(mobileControls.state.moveX) > 0.1 || Math.abs(mobileControls.state.moveY) > 0.1) {
+        direction.x = mobileControls.state.moveX;
+        direction.z = -mobileControls.state.moveY; // Forward is negative Z
+      }
+    }
+
+    // Keyboard controls (also work on desktop)
     if (this.keys["KeyW"] || this.keys["ArrowUp"] || this.isMouseDown)
       direction.z -= 1;
     if (this.keys["KeyS"] || this.keys["ArrowDown"]) direction.z += 1;
@@ -123,7 +140,7 @@ export class Player {
     if (this.keys["KeyD"] || this.keys["ArrowRight"]) direction.x += 1;
 
     let isMoving = false;
-    const wantsToRun = this.keys["ShiftLeft"] || this.keys["ShiftRight"];
+    const wantsToRun = this.keys["ShiftLeft"] || this.keys["ShiftRight"] || mobileControls.state.isSprinting;
     const canRun = this.stamina > 0;
     const isRunning = wantsToRun && canRun && direction.length() > 0;
 
