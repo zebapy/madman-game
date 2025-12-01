@@ -554,10 +554,12 @@ export function createHotelDoorGroup(
     doorPivot.rotation.y = side === "left" ? ajarAngle : -ajarAngle;
 
     // Add TV-like flickering light inside the room
-    const tvLight = new THREE.PointLight(0x6688ff, 0.8, 4, 2);
-    // Position light behind the door, inside the "room"
-    const lightOffset = side === "left" ? -0.8 : 0.8;
-    tvLight.position.set(lightOffset, DOOR_HEIGHT * 0.4, 0);
+    // Position light deeper into the room so it only peeks through the door crack
+    const tvLight = new THREE.PointLight(0x6688ff, 1.2, 3, 2);
+    // Light is far behind the door frame, inside the "room"
+    const lightDepth = -1.5; // Deep into the room (behind the wall)
+    const lightSideOffset = side === "left" ? -1.0 : 1.0;
+    tvLight.position.set(lightSideOffset, DOOR_HEIGHT * 0.35, lightDepth);
     doorGroup.add(tvLight);
 
     // Store light for animation with unique phase
@@ -565,17 +567,19 @@ export function createHotelDoorGroup(
     tvLight.userData.tvSpeed = 0.8 + rand() * 0.4;
     allTVLights.push(tvLight);
 
-    // Add a faint glow plane visible through the gap
-    const glowGeometry = new THREE.PlaneGeometry(0.3, DOOR_HEIGHT * 0.6);
+    // Add a faint glow plane at the door gap (visible through the crack)
+    const glowGeometry = new THREE.PlaneGeometry(0.08, DOOR_HEIGHT * 0.8);
     const glowMaterial = new THREE.MeshBasicMaterial({
       color: 0x4466aa,
       transparent: true,
-      opacity: 0.15,
+      opacity: 0.2,
       side: THREE.DoubleSide,
     });
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    glow.position.set(lightOffset * 0.5, DOOR_HEIGHT * 0.5, -0.1);
-    glow.rotation.y = Math.PI / 2;
+    // Position glow right at the door frame edge where the gap is
+    const gapOffset =
+      side === "left" ? -DOOR_WIDTH / 2 - 0.02 : DOOR_WIDTH / 2 + 0.02;
+    glow.position.set(gapOffset, DOOR_HEIGHT * 0.5, 0.02);
     doorGroup.add(glow);
   }
 

@@ -11,6 +11,7 @@ export interface AudioPosition {
 interface AudioConfig {
   junctionSounds: string[];
   hallwayAmbientSounds: string[];
+  sprintEndSound: string;
   musicTrack: string;
   hallwayAmbientChance: number; // Chance per update tick (0-1)
   hallwayAmbientCooldown: number; // Minimum ms between ambient sounds
@@ -21,6 +22,7 @@ interface AudioConfig {
 const DEFAULT_CONFIG: AudioConfig = {
   junctionSounds: ["/audio/knock3.mp3", "/audio/knock6.mp3"],
   hallwayAmbientSounds: ["/audio/floorcreak.mp3", "/audio/doorcreak.mp3"],
+  sprintEndSound: "/audio/endsprintbreath.mp3",
   musicTrack: "/audio/winddrone2.mp3",
   hallwayAmbientChance: 0.002, // ~0.2% chance per frame
   hallwayAmbientCooldown: 8000, // 8 seconds minimum between ambient sounds
@@ -79,6 +81,7 @@ class AudioSystem {
     const allSounds = [
       ...this.config.junctionSounds,
       ...this.config.hallwayAmbientSounds,
+      this.config.sprintEndSound,
     ];
 
     const loadPromises = allSounds.map((url) => this.loadAudioBuffer(url));
@@ -251,6 +254,14 @@ class AudioSystem {
 
   onJunctionUpdate(): void {
     this.isInHallway = false;
+  }
+
+  // Play sound when player stops sprinting
+  onSprintEnd(): void {
+    const buffer = this.audioBuffers.get(this.config.sprintEndSound);
+    if (buffer) {
+      this.playBuffer(buffer, 0.6);
+    }
   }
 
   private playJunctionSound(worldX: number, worldZ: number): void {

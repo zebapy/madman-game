@@ -33,6 +33,9 @@ export class Player {
   private staminaRegenDelay = 0;
   private staminaBar: HTMLElement | null = null;
   private staminaContainer: HTMLElement | null = null;
+  private wasRunning = false;
+  private sprintDuration = 0;
+  private readonly minSprintDurationForSound = 120; // ~2 seconds at 60fps
 
   constructor(
     camera: THREE.PerspectiveCamera,
@@ -128,11 +131,25 @@ export class Player {
     if (isRunning) {
       this.stamina = Math.max(0, this.stamina - STAMINA_DRAIN_RATE);
       this.staminaRegenDelay = STAMINA_REGEN_DELAY;
+      this.sprintDuration++;
     } else if (this.staminaRegenDelay > 0) {
       this.staminaRegenDelay--;
     } else {
       this.stamina = Math.min(MAX_STAMINA, this.stamina + STAMINA_REGEN_RATE);
     }
+
+    // Play sound when sprint ends (only if sprinted for a few seconds)
+    if (
+      this.wasRunning &&
+      !isRunning &&
+      this.sprintDuration >= this.minSprintDurationForSound
+    ) {
+      audioSystem.onSprintEnd();
+    }
+    if (!isRunning) {
+      this.sprintDuration = 0;
+    }
+    this.wasRunning = isRunning;
 
     // Update stamina UI
     this.updateStaminaUI();
