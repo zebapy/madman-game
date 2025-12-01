@@ -10,7 +10,7 @@ export const DOOR_HEIGHT = 2.4;
 export const DOOR_SPACING = 4; // Distance between doors along hallway
 
 // Maze system
-export const MAX_LOADED_SEGMENTS = 12;
+export const MAX_LOADED_SEGMENTS = 8; // Reduced for better performance in Firefox
 
 // Player
 export const MOVE_SPEED = 0.08;

@@ -19,6 +19,25 @@ canvas {
   display: block;
 }
 
+/* Letterbox Effect */
+.letterbox {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 8vh;
+  background: #000;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.letterbox-top {
+  top: 0;
+}
+
+.letterbox-bottom {
+  bottom: 0;
+}
+
 /* Stamina Bar */
 #stamina-container {
   position: fixed;

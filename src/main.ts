@@ -72,7 +72,7 @@ function playIntroSequence(fadeOverlay: HTMLElement, introText: HTMLElement) {
 // Scene setup
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x050505);
-scene.fog = new THREE.Fog(0x050505, 1, 18);
+scene.fog = new THREE.Fog(0x050505, 1, 14); // Slightly closer fog for better performance
 
 // Camera setup (first person)
 const camera = new THREE.PerspectiveCamera(
@@ -82,12 +82,15 @@ const camera = new THREE.PerspectiveCamera(
   100
 );
 
-// Renderer setup
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+// Renderer setup - optimized for Firefox compatibility
+const renderer = new THREE.WebGLRenderer({
+  antialias: false, // Disable for better performance (pixelation effect makes this less noticeable)
+  powerPreference: "high-performance",
+});
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // Cap pixel ratio lower for Firefox
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.BasicShadowMap; // Use basic shadows for better Firefox performance
 document.getElementById("app")!.appendChild(renderer.domElement);
 
 // Post-processing setup
@@ -107,8 +110,13 @@ const startPos = initializeMaze(scene);
 const player = new Player(camera, scene, renderer);
 player.setPosition(startPos.x, 1.6, startPos.z);
 
-// Animation functions
+// Animation functions - optimized to update less frequently
+let lightUpdateCounter = 0;
 function updateLights(time: number) {
+  // Only update every 3rd frame to reduce overhead
+  lightUpdateCounter++;
+  if (lightUpdateCounter % 3 !== 0) return;
+
   allWallLights.forEach((light, index) => {
     const baseIntensity = 0.7;
     const flicker =
@@ -128,21 +136,24 @@ function updatePortraits(time: number) {
   });
 }
 
-// TV light flickering effect (simulates old CRT TV)
+// TV light flickering effect (simulates old CRT TV) - optimized
+let tvUpdateCounter = 0;
 function updateTVLights(time: number) {
+  // Only update every 2nd frame
+  tvUpdateCounter++;
+  if (tvUpdateCounter % 2 !== 0) return;
+
   allTVLights.forEach((light) => {
     const phase = light.userData.tvPhase || 0;
     const speed = light.userData.tvSpeed || 1;
 
-    // Combine multiple frequencies for realistic TV flicker
-    const flicker1 = Math.sin(time * 15 * speed + phase) * 0.3;
-    const flicker2 = Math.sin(time * 23 * speed + phase * 1.5) * 0.2;
-    const flicker3 = Math.sin(time * 7 * speed + phase * 0.7) * 0.15;
+    // Simplified flicker calculation (fewer sin calls)
+    const flicker = Math.sin(time * 12 * speed + phase) * 0.4;
 
     // Occasional brightness spikes (scene changes)
     const spike = Math.random() > 0.995 ? 0.5 : 0;
 
-    // Random color shifts between blue-ish tones
+    // Simplified color (less frequent updates)
     const colorShift = Math.sin(time * 3 + phase) * 0.5 + 0.5;
     light.color.setRGB(
       0.4 + colorShift * 0.2,
@@ -150,10 +161,7 @@ function updateTVLights(time: number) {
       0.8 + colorShift * 0.2
     );
 
-    light.intensity = Math.max(
-      0.2,
-      0.6 + flicker1 + flicker2 + flicker3 + spike
-    );
+    light.intensity = Math.max(0.2, 0.6 + flicker + spike);
   });
 }
 
@@ -165,9 +173,17 @@ window.addEventListener("resize", () => {
   composer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Main animation loop
-function animate() {
+// Main animation loop - with frame rate limiting for Firefox
+let lastFrameTime = 0;
+const targetFrameTime = 1000 / 60; // Target 60fps
+
+function animate(currentTime: number = 0) {
   requestAnimationFrame(animate);
+
+  // Frame rate limiting - prevents Firefox from overworking
+  const deltaTime = currentTime - lastFrameTime;
+  if (deltaTime < targetFrameTime * 0.9) return; // Allow some tolerance
+  lastFrameTime = currentTime;
 
   const time = performance.now() * 0.001;
 
