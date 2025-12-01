@@ -253,6 +253,20 @@ debugMenu.innerHTML = `
       <label style="display: block; margin-bottom: 3px;">SFX Volume</label>
       <input type="range" id="sfx-volume" min="0" max="100" value="50" style="width: 100%;">
     </div>
+    <hr style="border-color: #444; margin: 10px 0;">
+    <div style="margin-bottom: 8px; font-weight: bold; color: #ff6600;">Graphics</div>
+    <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 5px;">
+      <input type="checkbox" id="pixelation-toggle" checked style="margin-right: 8px;">
+      Pixelation Effect
+    </label>
+    <div style="margin-top: 8px;">
+      <label style="display: block; margin-bottom: 3px;">Pixel Size: <span id="pixel-size-value">4</span></label>
+      <input type="range" id="pixel-size-slider" min="1" max="12" value="4" style="width: 100%;">
+    </div>
+    <div style="margin-top: 8px;">
+      <label style="display: block; margin-bottom: 3px;">FOV: <span id="fov-value">75</span>°</label>
+      <input type="range" id="fov-slider" min="50" max="100" value="75" style="width: 100%;">
+    </div>
   </div>
 `;
 document.body.appendChild(debugMenu);
@@ -299,6 +313,42 @@ musicVolumeSlider.addEventListener("input", () => {
 
 sfxVolumeSlider.addEventListener("input", () => {
   audioSystem.setSfxVolume(parseInt(sfxVolumeSlider.value) / 100);
+});
+
+// Pixelation toggle and size slider
+const pixelationToggle = document.getElementById(
+  "pixelation-toggle"
+) as HTMLInputElement;
+const pixelSizeSlider = document.getElementById(
+  "pixel-size-slider"
+) as HTMLInputElement;
+const pixelSizeValue = document.getElementById(
+  "pixel-size-value"
+) as HTMLElement;
+
+pixelationToggle.addEventListener("change", () => {
+  pixelationEffect.granularity = pixelationToggle.checked
+    ? parseInt(pixelSizeSlider.value)
+    : 0;
+});
+
+pixelSizeSlider.addEventListener("input", () => {
+  const size = parseInt(pixelSizeSlider.value);
+  pixelSizeValue.textContent = size.toString();
+  if (pixelationToggle.checked) {
+    pixelationEffect.granularity = size;
+  }
+});
+
+// FOV slider
+const fovSlider = document.getElementById("fov-slider") as HTMLInputElement;
+const fovValue = document.getElementById("fov-value") as HTMLElement;
+
+fovSlider.addEventListener("input", () => {
+  const fov = parseInt(fovSlider.value);
+  camera.fov = fov;
+  camera.updateProjectionMatrix();
+  fovValue.textContent = fov.toString();
 });
 
 // Initialize audio on first user interaction
