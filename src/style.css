@@ -4,6 +4,30 @@
   box-sizing: border-box;
 }
 
+/* Alpha Notice */
+#alpha-notice {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: monospace;
+  font-size: 12px;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+/* Instructions */
+#instructions {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  color: #444;
+  font-family: "Georgia", serif;
+  font-size: 12px;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+
 html,
 body {
   overflow: hidden;

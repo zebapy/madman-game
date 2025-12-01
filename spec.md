@@ -12,8 +12,9 @@ A first-person horror exploration game set in an infinite procedurally-generated
 ### Core Concept
 
 The player explores an endless maze of hotel hallways and intersections. Cryptic messages warn of a "madman" who communicates through knocking sounds:
+
 - 1 knock = wrong way
-- 2 knocks = try again  
+- 2 knocks = try again
 - 3 knocks = run
 
 ---
@@ -21,6 +22,7 @@ The player explores an endless maze of hotel hallways and intersections. Cryptic
 ## Technical Stack
 
 ### Dependencies
+
 - **three** (^0.181.2) - 3D rendering engine
 - **postprocessing** (^6.38.0) - Visual effects (pixelation)
 - **TypeScript** (^5.9.3) - Type safety
@@ -54,6 +56,7 @@ src/
 ### 1. Scene & Rendering
 
 **Setup:**
+
 - Scene background: `#050505` (near black)
 - Fog: Linear fog from 1 to 14 units (dark atmospheric)
 - Renderer: WebGL with `powerPreference: "high-performance"`
@@ -61,10 +64,12 @@ src/
 - Shadows: BasicShadowMap for performance
 
 **Post-Processing:**
+
 - EffectComposer pipeline
 - Pixelation effect (adjustable 1-12 granularity, default 4)
 
 **Camera:**
+
 - PerspectiveCamera
 - FOV: 75° (adjustable 50-100)
 - Near plane: 0.1
@@ -75,6 +80,7 @@ src/
 **Chunk Types:**
 
 1. **Hallway** - Straight corridors
+
    - Dimensions: 3.5w × 3.5h × 16 length
    - Orientations: North-South or East-West
    - Features: Walls, floor, ceiling, wainscoting
@@ -86,14 +92,15 @@ src/
    - 4 connection points (N, S, E, W)
 
 **Chunk Data Structure:**
+
 ```typescript
 interface Chunk {
-  id: string;              // Unique identifier
+  id: string; // Unique identifier
   type: "hallway" | "junction";
-  worldX: number;          // World position
+  worldX: number; // World position
   worldZ: number;
   connections: ConnectionPoint[];
-  seed: number;            // For deterministic generation
+  seed: number; // For deterministic generation
   isLoaded: boolean;
   meshGroup: THREE.Group | null;
   lights: THREE.PointLight[];
@@ -101,6 +108,7 @@ interface Chunk {
 ```
 
 **Generation Algorithm:**
+
 1. Start with a junction at origin (0, 0)
 2. Each junction spawns hallways in all 4 directions
 3. Each hallway spawns a junction at its far end
@@ -108,6 +116,7 @@ interface Chunk {
 5. Max loaded segments: 8 (unload farthest when exceeded)
 
 **Connection System:**
+
 - Connection points track attachment state
 - Chunks connect via opposite directions (north ↔ south)
 - Hallway center offset: `HALLWAY_LENGTH / 2` from connection
@@ -116,12 +125,14 @@ interface Chunk {
 ### 3. Player Controller
 
 **Movement:**
+
 ```typescript
-MOVE_SPEED: 0.08     // Units per frame
-SPRINT_SPEED: 0.12   // While holding Shift
+MOVE_SPEED: 0.08; // Units per frame
+SPRINT_SPEED: 0.12; // While holding Shift
 ```
 
 **Controls:**
+
 - WASD / Arrow keys: Movement
 - Mouse: Look around (pointer lock)
 - Shift: Sprint
@@ -129,20 +140,23 @@ SPRINT_SPEED: 0.12   // While holding Shift
 - ESC: Release pointer lock
 
 **Stamina System:**
+
 ```typescript
-MAX_STAMINA: 100
-STAMINA_DRAIN_RATE: 0.5    // Per frame while sprinting
-STAMINA_REGEN_RATE: 0.3    // Per frame while resting
-STAMINA_REGEN_DELAY: 60    // Frames before regen starts
+MAX_STAMINA: 100;
+STAMINA_DRAIN_RATE: 0.5; // Per frame while sprinting
+STAMINA_REGEN_RATE: 0.3; // Per frame while resting
+STAMINA_REGEN_DELAY: 60; // Frames before regen starts
 ```
 
 **Head Bob (Camera Shake):**
+
 - Frequency: 12 cycles per unit of movement
 - Vertical amplitude: 0.03 units
 - Horizontal sway: 0.015 units
 - Smoothly returns to base height when stopped
 
 **Collision Detection:**
+
 - Simple AABB-based collision
 - Margin: 0.4 units from walls
 - Checks all loaded chunks
@@ -151,6 +165,7 @@ STAMINA_REGEN_DELAY: 60    // Frames before regen starts
 ### 4. Audio System
 
 **Architecture:**
+
 - Web Audio API with AudioContext
 - 3D spatial audio using PannerNode (HRTF model)
 - Separate controls for music and SFX
@@ -158,35 +173,39 @@ STAMINA_REGEN_DELAY: 60    // Frames before regen starts
 
 **Audio Types:**
 
-| Type | Files | Trigger |
-|------|-------|---------|
-| Junction sounds | knock3.mp3, knock6.mp3 | Entering new junction |
-| Ambient sounds | floorcreak.mp3, doorcreak.mp3 | Random in hallways |
-| Door slam | doorcreak.mp3, knock4.mp3, knock6.mp3 | Door animations |
-| Sprint end | endsprintbreath.mp3 | After sustained sprint |
-| Background music | winddrone2.mp3 | Looping ambient |
+| Type             | Files                                 | Trigger                |
+| ---------------- | ------------------------------------- | ---------------------- |
+| Junction sounds  | knock3.mp3, knock6.mp3                | Entering new junction  |
+| Ambient sounds   | floorcreak.mp3, doorcreak.mp3         | Random in hallways     |
+| Door slam        | doorcreak.mp3, knock4.mp3, knock6.mp3 | Door animations        |
+| Sprint end       | endsprintbreath.mp3                   | After sustained sprint |
+| Background music | winddrone2.mp3                        | Looping ambient        |
 
 **Spatial Audio Config:**
+
 ```typescript
-maxAudioDistance: 25   // Fade out distance
-refDistance: 2         // Full volume distance
-hallwayAmbientChance: 0.002   // Per-frame chance
-hallwayAmbientCooldown: 8000  // ms between ambient
+maxAudioDistance: 25; // Fade out distance
+refDistance: 2; // Full volume distance
+hallwayAmbientChance: 0.002; // Per-frame chance
+hallwayAmbientCooldown: 8000; // ms between ambient
 ```
 
 **Listener Updates:**
+
 - Position synced with camera
 - Orientation synced with player yaw
 
 ### 5. Decorations & Props
 
 **Wall Lamps:**
+
 - Spacing: 10 units along hallway
 - Alternating sides
 - Point light: `#ffaa44`, intensity 1.2, range 10
 - Flickering animation in game loop
 
 **Hotel Doors:**
+
 - Spacing: 4 units along hallway (85% spawn chance)
 - Frame + panel + decorative insets
 - Brass handle and room number plate
@@ -194,12 +213,14 @@ hallwayAmbientCooldown: 8000  // ms between ambient
 - 15% chance to be "ajar" with TV light
 
 **Portraits:**
+
 - 1-2 per hallway (random placement)
 - Procedurally generated textures
 - Slight tilt with gentle sway animation
 - Avoid placement near doors
 
 **Floor Debris Types:**
+
 - Paper (crumpled notes)
 - Glass shards
 - Dust piles
@@ -210,6 +231,7 @@ hallwayAmbientCooldown: 8000  // ms between ambient
 - Dead leaves
 
 **TV Lights (Ajar Doors):**
+
 - Point light: `#6688ff` (blue-ish TV glow)
 - Flickering animation (phase and speed variation)
 - Visible glow plane at door gap
@@ -222,12 +244,12 @@ Two styles available via `TEXTURE_STYLE` constant:
 1. **Modern** (dirty hotel):
    - Dirty wall texture with water damage, stains, scuffs
    - Dark burgundy carpet with geometric pattern
-   
 2. **Classic** (Victorian):
    - Ornate damask wallpaper pattern
    - Wood plank floor texture
 
 **Wall Texture Layers:**
+
 1. Base color (dingy off-white)
 2. Color variation noise
 3. Yellowing gradient (top)
@@ -239,6 +261,7 @@ Two styles available via `TEXTURE_STYLE` constant:
 9. Dust accumulation
 
 **Floor Texture Layers:**
+
 1. Dark base color
 2. Geometric repeating pattern
 3. Wear/fade gradients (center, edges)
@@ -246,6 +269,7 @@ Two styles available via `TEXTURE_STYLE` constant:
 5. Noise grain overlay
 
 **Portrait Generation:**
+
 - Canvas-based procedural generation
 - Abstract humanoid figure
 - Dark oil painting aesthetic
@@ -258,21 +282,24 @@ Two styles available via `TEXTURE_STYLE` constant:
 ### Lighting
 
 **Ambient Light:**
+
 - Color: `#1a1010` (dark red tint)
 - Intensity: 0.6
 
 **Wall Lamp Flickering:**
+
 ```typescript
 // Update every 3rd frame
-baseIntensity = 0.7
-flicker = sin(time * 8) * 0.15 + sin(time * 17) * 0.08
+baseIntensity = 0.7;
+flicker = sin(time * 8) * 0.15 + sin(time * 17) * 0.08;
 // Occasional spike: 2% chance of -0.3
 ```
 
 **TV Light Flickering:**
+
 ```typescript
 // Update every 2nd frame
-flicker = sin(time * 12 * speed + phase) * 0.4
+flicker = sin(time * 12 * speed + phase) * 0.4;
 // 0.5% chance of brightness spike
 // Color oscillates between blue tones
 ```
@@ -280,6 +307,7 @@ flicker = sin(time * 12 * speed + phase) * 0.4
 ### Post-Processing
 
 **Pixelation Effect:**
+
 - Default granularity: 4
 - Range: 1-12 (UI adjustable)
 - Can be toggled off
@@ -289,12 +317,14 @@ flicker = sin(time * 12 * speed + phase) * 0.4
 ## UI Elements
 
 ### Stamina Bar
+
 - Position: Fixed bottom center
 - Size: 200px × 16px
 - Shows only when stamina < 100%
 - Turns red when stamina < 25%
 
 ### Intro Sequence
+
 1. Black fade-in overlay
 2. Title appears: "madman writing on the wall says"
 3. Lines fade in sequentially:
@@ -304,6 +334,7 @@ flicker = sin(time * 12 * speed + phase) * 0.4
 4. Fade out after ~7 seconds
 
 ### Debug Menu (Press `/`)
+
 - Chunk boundary visualization toggle
 - Audio controls (mute all/music/SFX)
 - Volume sliders (music/SFX)
@@ -311,6 +342,7 @@ flicker = sin(time * 12 * speed + phase) * 0.4
 - FOV slider (50-100°)
 
 ### Instructions Overlay
+
 - Fixed bottom-left corner
 - Movement instructions
 - Always visible
@@ -320,18 +352,21 @@ flicker = sin(time * 12 * speed + phase) * 0.4
 ## Performance Optimizations
 
 ### Firefox Compatibility
+
 - Pixel ratio capped at 1.5
 - BasicShadowMap instead of PCFSoftShadowMap
 - Frame rate limiting to 60fps
 - Antialias disabled
 
 ### Chunk Management
+
 - Max 8 loaded chunks
 - Distance-based unloading (furthest first)
 - Protected chunks: current + immediate neighbors (2 levels)
 - Geometry and material disposal on unload
 
 ### Animation Throttling
+
 - Lights update every 3rd frame
 - TV lights update every 2nd frame
 - Portrait sway is lightweight (rotation only)
@@ -342,27 +377,27 @@ flicker = sin(time * 12 * speed + phase) * 0.4
 
 ```typescript
 // Dimensions
-HALLWAY_WIDTH: 3.5
-HALLWAY_HEIGHT: 3.5
-HALLWAY_LENGTH: 16
-JUNCTION_SIZE: 3.5
-DOOR_WIDTH: 1.2
-DOOR_HEIGHT: 2.4
-DOOR_SPACING: 4
+HALLWAY_WIDTH: 3.5;
+HALLWAY_HEIGHT: 3.5;
+HALLWAY_LENGTH: 16;
+JUNCTION_SIZE: 3.5;
+DOOR_WIDTH: 1.2;
+DOOR_HEIGHT: 2.4;
+DOOR_SPACING: 4;
 
 // Limits
-MAX_LOADED_SEGMENTS: 8
+MAX_LOADED_SEGMENTS: 8;
 
 // Player
-MOVE_SPEED: 0.08
-SPRINT_SPEED: 0.12
-MAX_STAMINA: 100
-STAMINA_DRAIN_RATE: 0.5
-STAMINA_REGEN_RATE: 0.3
-STAMINA_REGEN_DELAY: 60
+MOVE_SPEED: 0.08;
+SPRINT_SPEED: 0.12;
+MAX_STAMINA: 100;
+STAMINA_DRAIN_RATE: 0.5;
+STAMINA_REGEN_RATE: 0.3;
+STAMINA_REGEN_DELAY: 60;
 
 // Style
-TEXTURE_STYLE: "modern" | "classic"
+TEXTURE_STYLE: "modern" | "classic";
 ```
 
 ---
@@ -379,6 +414,7 @@ seededRandom(seed: number): () => number
 ```
 
 **Direction Vectors:**
+
 - North: (0, 1)
 - South: (0, -1)
 - East: (1, 0)
@@ -391,18 +427,18 @@ seededRandom(seed: number): () => number
 ```typescript
 function animate(currentTime) {
   requestAnimationFrame(animate);
-  
+
   // Frame rate limiting (~60fps)
   if (deltaTime < targetFrameTime * 0.9) return;
-  
+
   const time = performance.now() * 0.001;
-  
-  player.update();        // Movement, collision, audio updates
-  updateLights(time);     // Wall lamp flickering
-  updatePortraits(time);  // Portrait swaying
-  updateTVLights(time);   // TV flickering effect
-  
-  composer.render();      // Post-processing pass
+
+  player.update(); // Movement, collision, audio updates
+  updateLights(time); // Wall lamp flickering
+  updatePortraits(time); // Portrait swaying
+  updateTVLights(time); // TV flickering effect
+
+  composer.render(); // Post-processing pass
 }
 ```
 
