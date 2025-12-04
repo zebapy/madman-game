@@ -251,13 +251,16 @@ const initAudio = async () => {
   await audioSystem.initialize();
   document.removeEventListener("click", initAudio);
   document.removeEventListener("keydown", initAudio);
+  document.removeEventListener("touchstart", initAudio);
 };
 
 document.addEventListener("click", initAudio);
 document.addEventListener("keydown", initAudio);
+document.addEventListener("touchstart", initAudio, { passive: true });
 
 // Resume audio context when user interacts (handles browser autoplay restrictions)
 document.addEventListener("click", () => audioSystem.resumeAudio());
+document.addEventListener("touchstart", () => audioSystem.resumeAudio(), { passive: true });
 
 // Toggle debug menu with '/' key
 let debugMenuVisible = false;
