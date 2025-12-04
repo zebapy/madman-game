@@ -16,63 +16,10 @@ import { Player } from "./player";
 import { audioSystem } from "./audio";
 import { allTVLights } from "./decorations";
 
-// Create fade overlay and intro text
-function createIntroElements() {
-  // Fade overlay
-  const fadeOverlay = document.createElement("div");
-  fadeOverlay.id = "fade-overlay";
-  document.body.appendChild(fadeOverlay);
-
-  // Intro text
-  const introText = document.createElement("div");
-  introText.id = "intro-text";
-  introText.innerHTML = `
-    <span class="title">madman writing on the wall says</span>
-    <span class="line">"1 knock, wrong way"</span>
-    <span class="line">"2 knocks, try again"</span>
-    <span class="line">"3 knocks, run"</span>
-  `;
-  document.body.appendChild(introText);
-
-  return { fadeOverlay, introText };
-}
-
-// Animate intro sequence
-function playIntroSequence(fadeOverlay: HTMLElement, introText: HTMLElement) {
-  // Start fade from black after a short delay
-  setTimeout(() => {
-    fadeOverlay.classList.add("fade-out");
-  }, 500);
-
-  // Show intro text container
-  setTimeout(() => {
-    introText.classList.add("visible");
-  }, 1000);
-
-  // Animate each line with staggered timing
-  const lines = introText.querySelectorAll(".line");
-  lines.forEach((line, index) => {
-    setTimeout(() => {
-      line.classList.add("visible");
-    }, 1500 + index * 800);
-  });
-
-  // Fade out intro text
-  setTimeout(() => {
-    introText.classList.remove("visible");
-  }, 7000);
-
-  // Remove overlay from DOM after animations complete
-  setTimeout(() => {
-    fadeOverlay.remove();
-    introText.remove();
-  }, 9000);
-}
-
 // Scene setup
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x050505);
-scene.fog = new THREE.Fog(0x050505, 1, 14); // Slightly closer fog for better performance
+scene.fog = new THREE.Fog(0x050505, 1, 18);
 
 // Camera setup (first person)
 const camera = new THREE.PerspectiveCamera(
@@ -82,15 +29,12 @@ const camera = new THREE.PerspectiveCamera(
   100
 );
 
-// Renderer setup - optimized for Firefox compatibility
-const renderer = new THREE.WebGLRenderer({
-  antialias: false, // Disable for better performance (pixelation effect makes this less noticeable)
-  powerPreference: "high-performance",
-});
+// Renderer setup
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // Cap pixel ratio lower for Firefox
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.BasicShadowMap; // Use basic shadows for better Firefox performance
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.getElementById("app")!.appendChild(renderer.domElement);
 
 // Post-processing setup
@@ -110,13 +54,8 @@ const startPos = initializeMaze(scene);
 const player = new Player(camera, scene, renderer);
 player.setPosition(startPos.x, 1.6, startPos.z);
 
-// Animation functions - optimized to update less frequently
-let lightUpdateCounter = 0;
+// Animation functions
 function updateLights(time: number) {
-  // Only update every 3rd frame to reduce overhead
-  lightUpdateCounter++;
-  if (lightUpdateCounter % 3 !== 0) return;
-
   allWallLights.forEach((light, index) => {
     const baseIntensity = 0.7;
     const flicker =
@@ -136,24 +75,21 @@ function updatePortraits(time: number) {
   });
 }
 
-// TV light flickering effect (simulates old CRT TV) - optimized
-let tvUpdateCounter = 0;
+// TV light flickering effect (simulates old CRT TV)
 function updateTVLights(time: number) {
-  // Only update every 2nd frame
-  tvUpdateCounter++;
-  if (tvUpdateCounter % 2 !== 0) return;
-
   allTVLights.forEach((light) => {
     const phase = light.userData.tvPhase || 0;
     const speed = light.userData.tvSpeed || 1;
 
-    // Simplified flicker calculation (fewer sin calls)
-    const flicker = Math.sin(time * 12 * speed + phase) * 0.4;
+    // Combine multiple frequencies for realistic TV flicker
+    const flicker1 = Math.sin(time * 15 * speed + phase) * 0.3;
+    const flicker2 = Math.sin(time * 23 * speed + phase * 1.5) * 0.2;
+    const flicker3 = Math.sin(time * 7 * speed + phase * 0.7) * 0.15;
 
     // Occasional brightness spikes (scene changes)
     const spike = Math.random() > 0.995 ? 0.5 : 0;
 
-    // Simplified color (less frequent updates)
+    // Random color shifts between blue-ish tones
     const colorShift = Math.sin(time * 3 + phase) * 0.5 + 0.5;
     light.color.setRGB(
       0.4 + colorShift * 0.2,
@@ -161,7 +97,10 @@ function updateTVLights(time: number) {
       0.8 + colorShift * 0.2
     );
 
-    light.intensity = Math.max(0.2, 0.6 + flicker + spike);
+    light.intensity = Math.max(
+      0.2,
+      0.6 + flicker1 + flicker2 + flicker3 + spike
+    );
   });
 }
 
@@ -173,17 +112,9 @@ window.addEventListener("resize", () => {
   composer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Main animation loop - with frame rate limiting for Firefox
-let lastFrameTime = 0;
-const targetFrameTime = 1000 / 60; // Target 60fps
-
-function animate(currentTime: number = 0) {
+// Main animation loop
+function animate() {
   requestAnimationFrame(animate);
-
-  // Frame rate limiting - prevents Firefox from overworking
-  const deltaTime = currentTime - lastFrameTime;
-  if (deltaTime < targetFrameTime * 0.9) return; // Allow some tolerance
-  lastFrameTime = currentTime;
 
   const time = performance.now() * 0.001;
 
@@ -195,11 +126,39 @@ function animate(currentTime: number = 0) {
   composer.render();
 }
 
-// Create intro elements and start the intro sequence
-const { fadeOverlay, introText } = createIntroElements();
-playIntroSequence(fadeOverlay, introText);
-
 animate();
+
+// Instructions overlay
+const instructions = document.createElement("div");
+instructions.id = "instructions";
+instructions.innerHTML = `
+  <div class="desktop-instructions" style="position: fixed; bottom: 20px; left: 20px; color: #444; font-family: 'Georgia', serif; font-size: 12px; text-shadow: 0 0 10px rgba(0,0,0,0.8);">
+    Click to look around<br>
+    WASD / Arrow keys to move<br>
+    Hold Shift to sprint<br>
+    ESC to release mouse<br>
+    <br>
+    Explore the infinite maze...
+  </div>
+  <div class="mobile-instructions" style="display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); color: #444; font-family: 'Georgia', serif; font-size: 12px; text-shadow: 0 0 10px rgba(0,0,0,0.8); text-align: center;">
+    Left joystick to move<br>
+    Right side to look around<br>
+    Tap SPRINT to run<br>
+    <br>
+    Explore the infinite maze...
+  </div>
+`;
+document.body.appendChild(instructions);
+
+// Show appropriate instructions based on device
+const style = document.createElement("style");
+style.textContent = `
+  @media (hover: none) and (pointer: coarse) {
+    .desktop-instructions { display: none !important; }
+    .mobile-instructions { display: block !important; }
+  }
+`;
+document.head.appendChild(style);
 
 // Debug menu
 const debugMenu = document.createElement("div");
@@ -238,20 +197,6 @@ debugMenu.innerHTML = `
     <div style="margin-top: 8px;">
       <label style="display: block; margin-bottom: 3px;">SFX Volume</label>
       <input type="range" id="sfx-volume" min="0" max="100" value="50" style="width: 100%;">
-    </div>
-    <hr style="border-color: #444; margin: 10px 0;">
-    <div style="margin-bottom: 8px; font-weight: bold; color: #ff6600;">Graphics</div>
-    <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 5px;">
-      <input type="checkbox" id="pixelation-toggle" checked style="margin-right: 8px;">
-      Pixelation Effect
-    </label>
-    <div style="margin-top: 8px;">
-      <label style="display: block; margin-bottom: 3px;">Pixel Size: <span id="pixel-size-value">4</span></label>
-      <input type="range" id="pixel-size-slider" min="1" max="12" value="4" style="width: 100%;">
-    </div>
-    <div style="margin-top: 8px;">
-      <label style="display: block; margin-bottom: 3px;">FOV: <span id="fov-value">75</span>°</label>
-      <input type="range" id="fov-slider" min="50" max="100" value="75" style="width: 100%;">
     </div>
   </div>
 `;
@@ -301,54 +246,21 @@ sfxVolumeSlider.addEventListener("input", () => {
   audioSystem.setSfxVolume(parseInt(sfxVolumeSlider.value) / 100);
 });
 
-// Pixelation toggle and size slider
-const pixelationToggle = document.getElementById(
-  "pixelation-toggle"
-) as HTMLInputElement;
-const pixelSizeSlider = document.getElementById(
-  "pixel-size-slider"
-) as HTMLInputElement;
-const pixelSizeValue = document.getElementById(
-  "pixel-size-value"
-) as HTMLElement;
-
-pixelationToggle.addEventListener("change", () => {
-  pixelationEffect.granularity = pixelationToggle.checked
-    ? parseInt(pixelSizeSlider.value)
-    : 0;
-});
-
-pixelSizeSlider.addEventListener("input", () => {
-  const size = parseInt(pixelSizeSlider.value);
-  pixelSizeValue.textContent = size.toString();
-  if (pixelationToggle.checked) {
-    pixelationEffect.granularity = size;
-  }
-});
-
-// FOV slider
-const fovSlider = document.getElementById("fov-slider") as HTMLInputElement;
-const fovValue = document.getElementById("fov-value") as HTMLElement;
-
-fovSlider.addEventListener("input", () => {
-  const fov = parseInt(fovSlider.value);
-  camera.fov = fov;
-  camera.updateProjectionMatrix();
-  fovValue.textContent = fov.toString();
-});
-
 // Initialize audio on first user interaction
 const initAudio = async () => {
   await audioSystem.initialize();
   document.removeEventListener("click", initAudio);
   document.removeEventListener("keydown", initAudio);
+  document.removeEventListener("touchstart", initAudio);
 };
 
 document.addEventListener("click", initAudio);
 document.addEventListener("keydown", initAudio);
+document.addEventListener("touchstart", initAudio, { passive: true });
 
 // Resume audio context when user interacts (handles browser autoplay restrictions)
 document.addEventListener("click", () => audioSystem.resumeAudio());
+document.addEventListener("touchstart", () => audioSystem.resumeAudio(), { passive: true });
 
 // Toggle debug menu with '/' key
 let debugMenuVisible = false;
